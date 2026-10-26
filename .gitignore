@@ -1,0 +1,6 @@
+_fresh/
+node_modules/
+.certs/
+.wrangler/
+.env
+*.log

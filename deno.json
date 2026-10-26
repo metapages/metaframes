@@ -1,0 +1,79 @@
+{
+  "nodeModulesDir": "manual",
+  "tasks": {
+    "check": "deno fmt --check . && deno lint . && deno check",
+    "dev": "vite",
+    "build": "vite build",
+    "start": "deno serve -A _fresh/server.js"
+  },
+  "lint": {
+    "rules": {
+      "tags": [
+        "fresh",
+        "recommended"
+      ]
+    }
+  },
+  "fmt": {
+    "exclude": [
+      "_fresh",
+      "static",
+      "**/*.md"
+    ]
+  },
+  "exclude": [
+    "**/_fresh/*",
+    "node_modules"
+  ],
+  "imports": {
+    "@/": "./",
+    "fresh": "jsr:@fresh/core@^2.3.3",
+    "preact": "npm:preact@^10.27.2",
+    "@preact/signals": "npm:@preact/signals@^2.3.2",
+    "@fresh/plugin-vite": "jsr:@fresh/plugin-vite@^1.1.2",
+    "vite": "npm:vite@^7.1.3",
+    "tailwindcss": "npm:tailwindcss@^4.1.10",
+    "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.1.12",
+    "wrangler": "npm:wrangler@^4.52.0",
+    "@metapages/metapage": "npm:@metapages/metapage@^1.8.25",
+    "@metapages/hash-query": "npm:@metapages/hash-query@^0.9.8",
+    "markdown-it": "npm:markdown-it@^14.1.0",
+    "markdown-it-anchor": "npm:markdown-it-anchor@^9.2.0",
+    "@types/markdown-it": "npm:@types/markdown-it@^14.1.2",
+    "codemirror": "npm:codemirror@^6.0.1",
+    "@codemirror/state": "npm:@codemirror/state@^6.5.2",
+    "@codemirror/view": "npm:@codemirror/view@^6.36.0",
+    "@codemirror/commands": "npm:@codemirror/commands@^6.8.0",
+    "@codemirror/lang-markdown": "npm:@codemirror/lang-markdown@^6.3.1"
+  },
+  "compilerOptions": {
+    "lib": [
+      "dom",
+      "dom.asynciterable",
+      "dom.iterable",
+      "deno.ns"
+    ],
+    "jsx": "precompile",
+    "jsxImportSource": "preact",
+    "jsxPrecompileSkipElements": [
+      "a",
+      "img",
+      "source",
+      "body",
+      "html",
+      "head",
+      "title",
+      "meta",
+      "script",
+      "link",
+      "style",
+      "base",
+      "noscript",
+      "template"
+    ],
+    "types": [
+      "vite/client",
+      "./types/types.d.ts"
+    ]
+  }
+}

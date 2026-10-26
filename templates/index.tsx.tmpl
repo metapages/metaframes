@@ -1,0 +1,9 @@
+import { define } from "../../utils.ts";
+import { helpUrl } from "../../lib/help.ts";
+import { Main } from "./(_islands)/Main.tsx";
+
+export default define.page(function __NAME__Page({ url }) {
+  // helpUrl is computed server-side so the Help tab resolves to this
+  // deployment, in whichever URL form the request arrived on.
+  return <Main helpUrl={helpUrl("__NAME__", url.protocol, url.host)} />;
+});

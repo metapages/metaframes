@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "metaframes",
+  // Fresh's build emits this already shaped as { fetch }. The subdomain ->
+  // path rewrite lives in main.ts (App.handler override), so dev and
+  // production share one implementation and no wrapper entry is needed.
+  "main": "./_fresh/server.js",
+  "compatibility_date": "2025-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // Fresh copies ./static into _fresh/client. Cloudflare's assets layer answers
+  // these before the Worker runs, which also means the Worker cannot serve
+  // static files itself: Fresh's production build cache uses Deno.open.
+  "assets": { "directory": "./_fresh/client" },
+  "routes": [
+    { "pattern": "mtfm.io/*", "zone_name": "mtfm.io" },
+    { "pattern": "*.mtfm.io/*", "zone_name": "mtfm.io" }
+  ],
+  "observability": { "enabled": true }
+}

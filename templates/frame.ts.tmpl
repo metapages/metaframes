@@ -1,0 +1,23 @@
+import type { FrameConfig } from "../../lib/registry.ts";
+import { options } from "./options.ts";
+
+export const frame: FrameConfig = {
+  title: "__NAME__",
+  description: "TODO: one line, shown on the landing page.",
+  // The first host is canonical; add any legacy subdomain labels that
+  // published metapages already embed so their URLs keep resolving here.
+  hosts: ["__NAME__"],
+  definition: {
+    version: "2",
+    metadata: {
+      name: "__NAME__",
+      title: "__NAME__",
+      description: "TODO",
+      tags: [],
+    },
+    inputs: {},
+    outputs: {},
+    hashParams: ["options", "hm"],
+  },
+  options,
+};

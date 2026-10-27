@@ -18,12 +18,14 @@
     "exclude": [
       "_fresh",
       "static",
+      ".wrangler",
       "**/*.md"
     ]
   },
   "exclude": [
     "**/_fresh/*",
-    "node_modules"
+    "node_modules",
+    ".wrangler"
   ],
   "imports": {
     "@/": "./",

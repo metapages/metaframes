@@ -84,6 +84,29 @@ server-side would flash chrome in every embed. These frames are hash-param
 driven — the fragment never reaches the server — so the UI is an island by
 nature.
 
+## Weight
+
+The page is small and renders content; anything heavier is fetched when it is
+actually needed. Measured on the production build:
+
+| | initial | after opening the editor |
+|---|---|---|
+| `/markdown` | 1.1 KB HTML + 329 KB JS | +610 KB |
+| `/echo` | 1.3 KB HTML + 191 KB JS | — |
+
+The rule for a new frame: **import a heavy dependency dynamically, inside the
+component that needs it.** Vite then splits it into its own chunk and the
+browser fetches it on mount, not on load.
+[`components/CodeMirror.tsx`](./components/CodeMirror.tsx) is the worked
+example — every CodeMirror import is dynamic and only the types are imported
+statically, so a markdown frame opened read-only ships none of the editor.
+The same applies to the frames still to migrate: pyodide, molstar, ffmpeg,
+monaco and the tfjs models should each stay out of their frame's first load.
+
+What legitimately belongs in the initial chunk is the frame's actual content
+renderer (markdown-it for the markdown frame) and `@metapages/metapage`, which
+has to connect to the parent metapage promptly to receive inputs.
+
 ## Commands
 
 ```sh

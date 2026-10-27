@@ -1,5 +1,5 @@
 import type { FrameConfig } from "../../lib/registry.ts";
-import { options } from "./options.ts";
+import { options, toolbar, wordmark } from "./config.ts";
 
 const MARKDOWN = "text/markdown; charset=UTF-8";
 
@@ -42,5 +42,7 @@ export const frame: FrameConfig = {
       "hm",
     ],
   },
+  wordmark,
   options,
+  toolbar,
 };

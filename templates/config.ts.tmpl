@@ -1,0 +1,21 @@
+import type { FrameOption, ToolbarItem } from "../../lib/registry.ts";
+
+// A frame's client-shareable configuration. Imported by BOTH frame.ts (for the
+// registry, which the server reads) and the frame's island (which renders it).
+// It cannot be passed from the route into the island as a prop: `options` may
+// carry `validator`/`map` functions, which do not survive island prop
+// serialization.
+
+/** Mono wordmark in the header, the way framejs.io shows "js". */
+export const wordmark = "__NAME__";
+
+/** Rendered by the shared Options panel, persisted to the `options` hash param. */
+export const options: FrameOption[] = [];
+
+/**
+ * Frame-specific header controls, interpreted by the shared shell — declare
+ * them here rather than writing buttons and handlers. e.g.
+ *
+ *   { kind: "hashParamToggle", param: "edit", label: "edit", icon: "pencil" }
+ */
+export const toolbar: ToolbarItem[] = [];

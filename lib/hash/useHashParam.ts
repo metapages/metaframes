@@ -33,6 +33,26 @@ export type HashParamSetter<T> = (
   opts?: SetHashParamOpts,
 ) => void;
 
+/**
+ * Re-render whenever the hash changes, returning a version counter.
+ *
+ * For code that reads params whose keys are not known at compile time — the
+ * shared shell interpreting a frame's declared `toolbar`, for instance, where
+ * one hook per item would make the hook count depend on configuration. Read
+ * values with the @metapages/hash-query getters; this only drives the update.
+ */
+export function useHashChange(): number {
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    if (!IS_BROWSER) return;
+    const bump = () => setVersion((v) => v + 1);
+    bump(); // the hash was not known during SSR
+    globalThis.addEventListener("hashchange", bump);
+    return () => globalThis.removeEventListener("hashchange", bump);
+  }, []);
+  return version;
+}
+
 /** Subscribe a reader to hashchange events and return its current value. */
 function useHashValue<T>(read: () => T): T {
   const [value, setValue] = useState<T>(read);

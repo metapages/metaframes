@@ -11,10 +11,7 @@ export type OptionValues = Record<
  * Expand `suboptions`: choosing a value in a `type: "option"` select reveals
  * that branch's extra fields.
  */
-function expand(
-  options: FrameOption[],
-  chosen: OptionValues,
-): FrameOption[] {
+function expand(options: FrameOption[], chosen: OptionValues): FrameOption[] {
   let out = options.concat();
   for (const option of options) {
     if (option.type !== "option" || !option.suboptions) continue;
@@ -54,12 +51,17 @@ function coerce(
 }
 
 /**
- * The shared Options tab: a declarative form over a frame's `FrameOption[]`
- * schema, persisted into a single JSON hash param (`options` by default).
+ * The shared settings panel: a form generated from a frame's `FrameOption[]`
+ * and persisted into a single JSON hash param.
  *
- * Edits are local until applied, which is how the metaframe this is ported
- * from behaved — an options form that rewrote the URL on every keystroke made
- * the hash unusable as an undo history.
+ * The framejs.io editor writes one hand-rolled component per setting
+ * (EditBgColor, EditEditorWidth, …). With ~30 frames to migrate that does not
+ * scale, so a frame declares its settings as data and this renders them in the
+ * same blueprint vocabulary: hairline-divided rows, mono eyebrow labels.
+ *
+ * Edits stay local until applied. A form that rewrote the URL on every
+ * keystroke would make the hash — which is the frame's shareable state —
+ * unusable as a history.
  */
 export function OptionsPanel(
   { options, hashKey = "options" }: {
@@ -122,42 +124,43 @@ export function OptionsPanel(
   }, [defaults]);
 
   return (
-    <div class="h-full overflow-auto p-4">
-      <p class="mb-4 text-sm text-gray-500">
-        Settings are stored in the URL, so the configured frame is shareable and
-        embeddable as-is.
-      </p>
-      <div class="flex flex-col gap-3 max-w-xl">
-        {visible.map((option) => (
-          <label key={option.name} class="flex flex-col gap-1">
-            <span class="text-sm font-medium text-gray-700">
-              {option.displayName || option.name}
-            </span>
-            <OptionInput
-              option={option}
-              value={draft[option.name]}
-              onChange={onChange}
-            />
-            {errors[option.name] && (
-              <span class="text-sm text-red-600">{errors[option.name]}</span>
-            )}
-          </label>
-        ))}
+    <div class="flex h-full flex-col">
+      <div class="min-h-0 flex-1 overflow-y-auto">
+        <p class="px-6 pt-5 pb-4 text-sm text-ink-2">
+          Settings are stored in the URL, so a configured frame is shareable and
+          embeddable as it stands.
+        </p>
+        <div class="border-t border-line">
+          {visible.map((option) => (
+            <div
+              key={option.name}
+              class="flex flex-col gap-2 border-b border-line px-6 py-4"
+            >
+              <label class="eyebrow" for={`option-${option.name}`}>
+                {option.displayName || option.name}
+              </label>
+              <OptionInput
+                option={option}
+                value={draft[option.name]}
+                onChange={onChange}
+              />
+              {errors[option.name] && (
+                <span class="text-sm text-danger">{errors[option.name]}</span>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
-      <div class="flex items-center gap-2 mt-5">
+      <div class="flex shrink-0 items-center gap-2 border-t border-line bg-surface-2 px-6 py-3">
         <button
           type="button"
           onClick={apply}
           disabled={!dirty}
-          class="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:hover:bg-blue-600"
+          class="btn btn-primary"
         >
           Apply
         </button>
-        <button
-          type="button"
-          onClick={reset}
-          class="px-3 py-1.5 text-sm rounded-md border border-gray-300 hover:bg-gray-100"
-        >
+        <button type="button" onClick={reset} class="btn btn-secondary">
           Reset to defaults
         </button>
       </div>
@@ -172,14 +175,14 @@ function OptionInput(
     onChange: (name: string, value: string | boolean) => void;
   },
 ) {
-  const common =
-    "px-2 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+  const id = `option-${option.name}`;
 
   if (option.type === "option") {
     return (
       <select
+        id={id}
         name={option.name}
-        class={common}
+        class="field max-w-xs"
         value={value === undefined ? "" : String(value)}
         onChange={(e) => onChange(option.name, e.currentTarget.value)}
       >
@@ -189,22 +192,33 @@ function OptionInput(
   }
 
   if (option.type === "boolean") {
+    const on = value === true || value === "1" || value === "true";
     return (
-      <input
-        type="checkbox"
-        name={option.name}
-        class="w-4 h-4"
-        checked={value === true || value === "1" || value === "true"}
-        onChange={(e) => onChange(option.name, e.currentTarget.checked)}
-      />
+      <button
+        id={id}
+        type="button"
+        role="switch"
+        aria-checked={on}
+        onClick={() => onChange(option.name, !on)}
+        class={`relative h-5 w-9 shrink-0 rounded-full border transition-colors duration-150 ${
+          on ? "border-accent bg-accent" : "border-line-strong bg-surface"
+        }`}
+      >
+        <span
+          class={`absolute top-0.5 h-3.5 w-3.5 rounded-full transition-all duration-150 ${
+            on ? "left-[18px] bg-on-accent" : "left-0.5 bg-line-strong"
+          }`}
+        />
+      </button>
     );
   }
 
   return (
     <input
+      id={id}
       type={option.type === "number" ? "number" : "text"}
       name={option.name}
-      class={common}
+      class="field max-w-xs font-mono text-sm"
       value={value === undefined ? "" : String(value)}
       onInput={(e) => onChange(option.name, e.currentTarget.value)}
     />

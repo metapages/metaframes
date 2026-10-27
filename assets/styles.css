@@ -1,29 +1,354 @@
 @import "tailwindcss";
 
-/* Pyodide stdout / stderr output blocks (appended as raw DOM to #root). */
-.pre-stdout,
-.pre-stderr {
-  overflow: auto;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  margin: 0;
-  padding: 2px 6px;
-  font-family: "Courier New", Courier, monospace;
+/* ---------------------------------------------------------------------------
+   Blueprint design system — the framejs.io editor's visual language, so the
+   metaframes and framejs.io read as one product.
+
+   Ported from framejs.io/editor/src/styles/blueprint.css (also published at
+   https://framejs.io/blueprint.css). Keep the CSS-variable names and component
+   class names identical across the repos: to restyle in lockstep, change the
+   same token in both places.
+
+   "Blueprint / drafting table": warm technical paper, dusk blue ink, hairline
+   rules, mono micro-labels. IBM Plex Sans (body/chrome) + IBM Plex Mono
+   (wordmark, labels, data, code).
+--------------------------------------------------------------------------- */
+
+/* Self-hosted from static/fonts so there is no font-CDN round trip and the
+   frames render identically offline. Same filenames as framejs.io. */
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2");
 }
-.pre-stdout {
-  background-color: #f8f8f8;
-  border-left: 3px solid #000;
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2");
 }
-.pre-stderr {
-  background-color: #fff0f0;
-  color: #d32f2f;
-  border-left: 3px solid #e53935;
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-sans-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/ibm-plex-mono-latin-600-normal.woff2") format("woff2");
 }
 
-/* Minimal markdown rendering styles (Tailwind's reset removes defaults). */
+/* --- Palette: light (default) ------------------------------------------- */
+:root,
+:root[data-theme="light"] {
+  --paper: #f4f3ef; /* warm drafting paper — app ground */
+  --surface: #ffffff; /* plates / cards */
+  --surface-2: #eceae3; /* recessed fills, hovers */
+  --ink: #111110; /* warm near-black — primary text */
+  --ink-2: #55534c; /* secondary text */
+  --ink-3: #6e6c63; /* muted / captions */
+  --line: #dbd8d0; /* hairline rules & borders */
+  --line-strong: #c1bdb1; /* emphasized rule / hover border */
+  --accent: #465775; /* dusk blue — the one bold move */
+  --accent-hover: #354462;
+  --accent-soft: #e9ecf2; /* accent-tinted fill */
+  --on-accent: #ffffff;
+  --good: #1c6b3a; /* live / running / success */
+  --good-soft: #e7f1ea;
+  --warning: #8a6410;
+  --danger: #8e1b2e;
+  --danger-soft: #fbeaed;
+  --focus: #465775;
+
+  --radius-plate: 3px;
+  --radius-control: 4px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  color-scheme: light;
+}
+
+/* --- Palette: dark ------------------------------------------------------- */
+/* Metaframes are embedded in a parent metapage that controls the surrounding
+   look, so the frames follow the viewer's theme rather than pinning light. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #131311;
+    --surface: #1c1c19;
+    --surface-2: #232320;
+    --ink: #eeece5;
+    --ink-2: #a3a099;
+    --ink-3: #85837b;
+    --line: #2c2b27;
+    --line-strong: #413f39;
+    --accent: #9cb2d2;
+    --accent-hover: #b9cae4;
+    --accent-soft: #1a1f2b;
+    --on-accent: #171512;
+    --good: #4bb267;
+    --good-soft: #16241b;
+    --warning: #d9a441;
+    --danger: #ef7d84;
+    --danger-soft: #2b1619;
+    --focus: #9cb2d2;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #131311;
+  --surface: #1c1c19;
+  --surface-2: #232320;
+  --ink: #eeece5;
+  --ink-2: #a3a099;
+  --ink-3: #85837b;
+  --line: #2c2b27;
+  --line-strong: #413f39;
+  --accent: #9cb2d2;
+  --accent-hover: #b9cae4;
+  --accent-soft: #1a1f2b;
+  --on-accent: #171512;
+  --good: #4bb267;
+  --good-soft: #16241b;
+  --warning: #d9a441;
+  --danger: #ef7d84;
+  --danger-soft: #2b1619;
+  --focus: #9cb2d2;
+  color-scheme: dark;
+}
+
+/* --- Tailwind token mapping ---------------------------------------------- */
+/* Same technique framejs.app uses, so the tokens above are reachable as
+   utilities: bg-paper, text-ink-2, border-line, rounded-control, … */
+@theme inline {
+  --font-sans:
+    "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono:
+    "IBM Plex Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-on-accent: var(--on-accent);
+  --color-good: var(--good);
+  --color-good-soft: var(--good-soft);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --radius-plate: var(--radius-plate);
+  --radius-control: var(--radius-control);
+
+  --ease-out: var(--ease-out);
+}
+
+/* --- Base ---------------------------------------------------------------- */
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  margin: 0;
+}
+::selection {
+  background-color: var(--accent);
+  color: var(--on-accent);
+}
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 1px;
+}
+
+/* --- Components: the shared blueprint vocabulary ------------------------- */
+/* Mono uppercase micro-label — panel titles, field labels, meta. */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-control);
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1;
+  padding: 0.625rem 1rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    transform 140ms var(--ease-out),
+    background-color 140ms var(--ease-out),
+    border-color 140ms var(--ease-out),
+    color 140ms var(--ease-out);
+}
+.btn:active {
+  transform: scale(0.97);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn:disabled:active {
+  transform: none;
+}
+.btn-primary {
+  background-color: var(--accent);
+  color: var(--on-accent);
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--accent-hover);
+}
+.btn-secondary {
+  background-color: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+}
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--ink-3);
+  background-color: var(--surface-2);
+}
+.btn-ghost {
+  background-color: transparent;
+  color: var(--ink-2);
+}
+.btn-ghost:hover:not(:disabled) {
+  color: var(--ink);
+  background-color: var(--surface-2);
+}
+
+/* Text form control. */
+.field {
+  display: block;
+  width: 100%;
+  background-color: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-control);
+  padding: 0.5625rem 0.75rem;
+  font-size: 0.9375rem;
+  transition:
+    border-color 140ms var(--ease-out),
+    box-shadow 140ms var(--ease-out);
+}
+.field::placeholder {
+  color: var(--ink-3);
+}
+.field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* A drafting plate — the card/surface primitive. */
+.plate {
+  background-color: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-plate);
+}
+
+/* Registration corner ticks — a drafting-plate flourish.
+   Apply to a `position: relative` element. */
+.ticks::before,
+.ticks::after {
+  content: "";
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  pointer-events: none;
+  color: var(--line-strong);
+}
+.ticks::before {
+  top: -1px;
+  left: -1px;
+  border-top: 1px solid currentColor;
+  border-left: 1px solid currentColor;
+}
+.ticks::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 1px solid currentColor;
+  border-right: 1px solid currentColor;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn {
+    transition: none;
+  }
+}
+
+/* --- Frame-specific surfaces -------------------------------------------- */
+/* CodeMirror, styled to the blueprint palette rather than its own defaults. */
+.cm-editor {
+  height: 100%;
+  background-color: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+.cm-editor .cm-gutters {
+  background-color: var(--surface);
+  color: var(--ink-3);
+  border-right: 1px solid var(--line);
+}
+.cm-editor.cm-focused {
+  outline: none;
+}
+.cm-editor .cm-activeLine,
+.cm-editor .cm-activeLineGutter {
+  background-color: var(--surface-2);
+}
+.cm-editor .cm-content {
+  caret-color: var(--accent);
+}
+.cm-editor .cm-selectionBackground,
+.cm-editor .cm-content ::selection {
+  background-color: var(--accent-soft) !important;
+}
+
+/* Markdown rendering. Tailwind's preflight strips element defaults and the
+   markdown frame injects raw HTML, so these have to be spelled out — in the
+   blueprint palette rather than GitHub's. */
 .markdown-body {
-  line-height: 1.6;
-  color: #24292f;
+  line-height: 1.65;
+  color: var(--ink);
+  font-family: var(--font-sans);
   word-wrap: break-word;
 }
 .markdown-body h1,
@@ -32,60 +357,66 @@
 .markdown-body h4 {
   font-weight: 600;
   line-height: 1.25;
-  margin: 1.2em 0 0.6em;
+  letter-spacing: -0.01em;
+  margin: 1.4em 0 0.6em;
 }
 .markdown-body h1 {
-  font-size: 2em;
-  border-bottom: 1px solid #eaecef;
+  font-size: 1.75rem;
+  border-bottom: 1px solid var(--line);
   padding-bottom: 0.3em;
 }
 .markdown-body h2 {
-  font-size: 1.5em;
-  border-bottom: 1px solid #eaecef;
+  font-size: 1.35rem;
+  border-bottom: 1px solid var(--line);
   padding-bottom: 0.3em;
 }
 .markdown-body h3 {
-  font-size: 1.25em;
+  font-size: 1.1rem;
 }
 .markdown-body p,
 .markdown-body ul,
 .markdown-body ol,
 .markdown-body blockquote,
 .markdown-body table {
-  margin: 0.75em 0;
+  margin: 0.85em 0;
 }
 .markdown-body ul {
   list-style: disc;
-  padding-left: 2em;
+  padding-left: 1.6em;
 }
 .markdown-body ol {
   list-style: decimal;
-  padding-left: 2em;
+  padding-left: 1.6em;
 }
 .markdown-body a {
-  color: #0969da;
+  color: var(--accent);
   text-decoration: underline;
+  text-underline-offset: 2px;
 }
 .markdown-body code {
-  background: rgba(175, 184, 193, 0.2);
-  padding: 0.2em 0.4em;
-  border-radius: 6px;
-  font-family: "Courier New", Courier, monospace;
-  font-size: 0.9em;
+  background: var(--surface-2);
+  padding: 0.15em 0.4em;
+  border-radius: var(--radius-control);
+  font-family: var(--font-mono);
+  font-size: 0.875em;
 }
 .markdown-body pre {
-  background: #f6f8fa;
-  padding: 1em;
-  border-radius: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  padding: 0.9em 1em;
+  border-radius: var(--radius-plate);
   overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
 }
 .markdown-body pre code {
   background: none;
   padding: 0;
+  font-size: inherit;
 }
 .markdown-body blockquote {
-  border-left: 0.25em solid #d0d7de;
-  color: #57606a;
+  border-left: 2px solid var(--line-strong);
+  color: var(--ink-2);
   padding: 0 1em;
 }
 .markdown-body table {
@@ -93,9 +424,40 @@
 }
 .markdown-body th,
 .markdown-body td {
-  border: 1px solid #d0d7de;
+  border: 1px solid var(--line);
   padding: 6px 13px;
+}
+.markdown-body th {
+  background: var(--surface-2);
+  font-weight: 600;
+}
+.markdown-body hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 1.8em 0;
 }
 .markdown-body img {
   max-width: 100%;
+}
+
+/* Pyodide-style stdout / stderr blocks, appended as raw DOM by frames that
+   stream output. */
+.pre-stdout,
+.pre-stderr {
+  overflow: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin: 0;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+.pre-stdout {
+  background-color: var(--surface);
+  border-left: 2px solid var(--line-strong);
+}
+.pre-stderr {
+  background-color: var(--danger-soft);
+  color: var(--danger);
+  border-left: 2px solid var(--danger);
 }

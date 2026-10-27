@@ -1,5 +1,5 @@
 import type { FrameConfig } from "../../lib/registry.ts";
-import { options } from "./options.ts";
+import { options, toolbar, wordmark } from "./config.ts";
 
 export const frame: FrameConfig = {
   title: "Echo",
@@ -20,5 +20,7 @@ export const frame: FrameConfig = {
     outputs: { "*": { type: "application/octet-stream:base64" } },
     hashParams: ["debug", "hm"],
   },
+  wordmark,
   options,
+  toolbar,
 };

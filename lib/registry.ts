@@ -5,7 +5,37 @@
 // central import list to edit. (The previous attempt in ../metaframes-all kept
 // a `MetaframeId` union that had to be edited in four places per metaframe.)
 
-/** A declarative settings-form field, rendered by islands/OptionsMenu.tsx. */
+import type { IconName } from "../components/icons.tsx";
+
+/**
+ * A toolbar control, declared as data in a frame's frame.ts and interpreted by
+ * the shared shell (components/MainHeader.tsx).
+ *
+ * This is the "configuration, not duplicated code" seam: a frame that wants an
+ * Edit toggle in the header says so here rather than writing a button, a
+ * handler and a hash-param hook of its own. Add a `kind` when a second frame
+ * needs the same behaviour — not before.
+ */
+export type ToolbarItem =
+  /**
+   * Flips a boolean hash param. The frame's own UI reads the same param with
+   * useHashParamBoolean, so the two stay in sync with no wiring.
+   */
+  | {
+    kind: "hashParamToggle";
+    param: string;
+    label: string;
+    icon: IconName;
+  }
+  /** Opens a URL in a new tab. */
+  | {
+    kind: "link";
+    href: string;
+    label: string;
+    icon: IconName;
+  };
+
+/** A declarative settings-form field, rendered by components/OptionsPanel.tsx. */
 export interface FrameOption {
   name: string;
   displayName: string;
@@ -53,8 +83,15 @@ export interface FrameConfig {
    */
   hosts: string[];
   definition: MetaframeDefinition;
-  /** Declarative Options tab schema. */
+  /**
+   * Short mono wordmark in the top-left of the header, the way the framejs.io
+   * editor shows "js". Defaults to the frame's directory name.
+   */
+  wordmark?: string;
+  /** Declarative Options panel schema. */
   options?: FrameOption[];
+  /** Frame-specific header controls, interpreted by the shared shell. */
+  toolbar?: ToolbarItem[];
   /**
    * Extra response headers for this frame's routes only. Some metaframes need
    * them and applying them app-wide would break the others: bluetooth needs

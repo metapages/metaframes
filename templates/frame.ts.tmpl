@@ -1,5 +1,5 @@
 import type { FrameConfig } from "../../lib/registry.ts";
-import { options } from "./options.ts";
+import { options, toolbar, wordmark } from "./config.ts";
 
 export const frame: FrameConfig = {
   title: "__NAME__",
@@ -19,5 +19,7 @@ export const frame: FrameConfig = {
     outputs: {},
     hashParams: ["options", "hm"],
   },
+  wordmark,
   options,
+  toolbar,
 };

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "preact/hooks";
 import markdownit from "markdown-it";
 import markdownItAnchor from "markdown-it-anchor";
 import { FrameShell } from "../../../components/FrameShell.tsx";
+import type { HelpConfig } from "../../../lib/help.ts";
 import { CodeMirror } from "../../../components/CodeMirror.tsx";
 import {
   useHashParam,
@@ -13,7 +14,7 @@ import {
   mermaidFencePlugin,
   singleScreenPlugin,
 } from "../../../lib/markdown/plugins.ts";
-import { options as optionsSchema } from "../options.ts";
+import { options, toolbar, wordmark } from "../config.ts";
 
 interface Options {
   dm?: string; // display mode ("slide")
@@ -57,10 +58,12 @@ function renderMarkdown(source: string, options: Options): string {
   return md.render(source ?? "");
 }
 
-export function MarkdownView({ helpUrl }: { helpUrl: string }) {
+export function MarkdownView({ help }: { help: HelpConfig }) {
   const [markdown, setMarkdown] = useMarkdown();
-  const [options] = useHashParamJson<Options>("options", {});
-  const [edit, setEdit] = useHashParamBoolean("edit");
+  const [viewOptions] = useHashParamJson<Options>("options", {});
+  // Written by the shell's declared `edit` toolbar toggle (see ../config.ts) —
+  // this side only reads it.
+  const [edit] = useHashParamBoolean("edit");
   const [bgColor] = useHashParam("bgColor");
   const [editorWidth] = useHashParam("editorWidth", "80ch");
   const rootRef = useRef<HTMLDivElement>(null);
@@ -72,7 +75,7 @@ export function MarkdownView({ helpUrl }: { helpUrl: string }) {
     const root = rootRef.current;
     if (!root) return;
     try {
-      root.innerHTML = renderMarkdown(markdown, options);
+      root.innerHTML = renderMarkdown(markdown, viewOptions);
     } catch (err) {
       root.innerHTML = renderMarkdown(
         `# Error rendering markdown\n\n\`\`\`\n${err}\n\`\`\``,
@@ -80,54 +83,41 @@ export function MarkdownView({ helpUrl }: { helpUrl: string }) {
       );
     }
     if (root.querySelector(".mermaid")) {
-      ensureMermaid(options?.theme ?? "default")
+      ensureMermaid(viewOptions?.theme ?? "default")
         .then((m) => m.run({ querySelector: ".mermaid" }).catch(() => {}))
         .catch(() => {});
     }
-  }, [markdown, options]);
+  }, [markdown, viewOptions]);
 
   return (
     <FrameShell
+      wordmark={wordmark}
       title="Markdown"
-      helpUrl={helpUrl}
-      mainLabel="View"
-      options={optionsSchema}
+      help={help}
+      options={options}
+      toolbar={toolbar}
     >
       <div
-        class="w-full h-full flex flex-col"
+        class="flex h-full w-full bg-surface"
         style={bgColor ? { background: bgColor } : undefined}
       >
-        <div class="flex items-center gap-1 px-2 py-1 border-b border-gray-100 shrink-0">
-          <button
-            type="button"
-            onClick={() => setEdit(edit ? undefined : true)}
-            class={`px-2 py-0.5 text-sm rounded-md hover:bg-gray-100 ${
-              edit ? "bg-gray-100" : ""
-            }`}
-            title="Toggle the markdown editor"
+        {edit && (
+          <div
+            class="min-w-0 shrink-0 border-r border-line"
+            style={{ width: editorWidth }}
           >
-            ✏️ Edit
-          </button>
-        </div>
-        <div class="flex-1 min-h-0 flex">
-          {edit && (
-            <div
-              class="min-w-0 border-r border-gray-200"
-              style={{ width: editorWidth }}
-            >
-              <CodeMirror
-                value={markdown}
-                language="markdown"
-                onChange={setMarkdown}
-              />
-            </div>
-          )}
-          <div class="relative flex-1 min-w-0">
-            <div
-              ref={rootRef}
-              class="markdown-body absolute inset-0 overflow-auto p-4"
+            <CodeMirror
+              value={markdown}
+              language="markdown"
+              onChange={setMarkdown}
             />
           </div>
+        )}
+        <div class="relative min-w-0 flex-1">
+          <div
+            ref={rootRef}
+            class="markdown-body absolute inset-0 overflow-auto px-6 py-5"
+          />
         </div>
       </div>
     </FrameShell>

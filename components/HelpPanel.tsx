@@ -11,5 +11,11 @@
  * this deployment rather than production, in whichever URL form is in use.
  */
 export function HelpPanel({ url }: { url: string }) {
-  return <iframe class="w-full h-full border-0" src={url} title="Help" />;
+  return (
+    <iframe
+      class="h-full w-full border-0 bg-surface"
+      src={url}
+      title="Help"
+    />
+  );
 }

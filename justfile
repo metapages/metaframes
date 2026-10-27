@@ -81,7 +81,7 @@ dev: install _mkcert
     if [ -d "frames/{{ FRAME }}" ]; then echo "frames/{{ FRAME }} already exists"; exit 1; fi
     mkdir -p "frames/{{ FRAME }}/(_islands)"
     sed "s/__NAME__/{{ FRAME }}/g" templates/frame.ts.tmpl > "frames/{{ FRAME }}/frame.ts"
-    sed "s/__NAME__/{{ FRAME }}/g" templates/options.ts.tmpl > "frames/{{ FRAME }}/options.ts"
+    sed "s/__NAME__/{{ FRAME }}/g" templates/config.ts.tmpl > "frames/{{ FRAME }}/config.ts"
     sed "s/__NAME__/{{ FRAME }}/g" templates/index.tsx.tmpl > "frames/{{ FRAME }}/index.tsx"
     sed "s/__NAME__/{{ FRAME }}/g" templates/island.tsx.tmpl > "frames/{{ FRAME }}/(_islands)/Main.tsx"
     sed "s/__NAME__/{{ FRAME }}/g" templates/README.md.tmpl > "frames/{{ FRAME }}/README.md"

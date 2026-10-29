@@ -97,6 +97,10 @@ value, and keeps this repo insulated if the notification mechanism ever changes.
   older encoding.
 - List every param a frame reads in its `hashParams` in `frame.ts`, so the
   definition at `/<frame>/metaframe.json` stays truthful.
+- `edit` is reserved: it means "the menu is open", and the shell owns it. It is
+  authoring state, so it is stripped from the URL the copy action produces — add
+  any other authoring-only param to `AUTHORING_PARAMS` in
+  `components/FrameShell.tsx` rather than leaking it into shared links.
 - Reading a param someone else wrote by hand must stay tolerant — some existing
   metaframes build `#?url=…` unencoded. The getters already handle it; do not
   "fix" the value on the way in.

@@ -87,16 +87,14 @@ export function MarkdownView({ help }: { help: HelpConfig }) {
     }
   }, [root, markdown, viewOptions]);
 
-  // The editor is part of the menu, not the renderer: it opens in the shell's
-  // shared panel, so hiding the menu hides it too and an embedded frame is
-  // just the rendered document. The two communicate only through the `md` hash
+  // The editor is part of the menu, not the renderer: `edit=true` opens the
+  // menu and this is the panel it lands on, so a frame without `edit` is just
+  // the rendered document. The two communicate only through the `md` hash
   // param — the editor writes it, the renderer reads it.
   const panels = useMemo(() => [{
     key: "editor",
     label: "editor",
     icon: "pencil" as const,
-    // Published URLs use `edit=true` to open the editor; keep that contract.
-    param: "edit",
     width: editorWidth,
     content: (
       <CodeMirror

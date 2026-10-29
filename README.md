@@ -104,62 +104,26 @@ open state in a hash param (`edit` for the markdown editor) so a shared URL
 reopens it; state travels between a panel and the renderer through hash params
 only, so neither needs to know about the other.
 
-### `hm` — how much chrome to show
+### `edit` — the menu
 
-Reproduced exactly from the metaframes this replaces, because published metapage
-URLs set it:
+`edit=true` opens the whole authoring surface: the header bar, and a panel
+beside the renderer. Without it a frame is **only its renderer** — no header,
+no panels, none of the editor fetched. That is what an embed is, and what a
+shared link should be, which is why the copy action strips `edit` from the URL
+it puts on the clipboard while leaving the page you are working in alone.
+
+Opening the menu lands on the frame's first declared panel (the editor, for
+markdown). The header then holds **one** selection: panels behave like tabs,
+because two lit buttons read as two independent toggles. Plain actions (copy,
+links) never render as selected.
+
+`hm` still decides how reachable the menu is, and keeps its published meaning:
 
 | value | behaviour |
 |---|---|
-| absent / `visible` | chrome hidden when embedded, toggle button shown |
-| `invisible` | toggle rendered but transparent, still clickable |
-| `disabled` | no chrome and no toggle, ever |
-
-Chrome renders only after mount: `isIframe()` is false during SSR, so deciding
-server-side would flash chrome in every embed. These frames are hash-param
-driven — the fragment never reaches the server — so the UI is an island by
-nature.
-
-## Hash params
-
-The URL hash is a frame's state, and [`@metapages/hash-query`](https://www.npmjs.com/package/@metapages/hash-query)
-owns its wire format. **Never hand-roll any part of it** — no `atob`/`btoa`, no
-`location.hash` slicing, no string-concatenated `#?a=1&b=2`. Use the Preact
-wrappers in [`lib/hash/useHashParam.ts`](./lib/hash/useHashParam.ts), or the
-module's own getters, setters and `addEventListenerHashParam*` subscriptions
-outside a component. Full rules, including the compatibility constraints that
-keep published metapage URLs working, are in the `hash-params` skill
-([`.claude/skills/hash-params/SKILL.md`](./.claude/skills/hash-params/SKILL.md)).
-
-One rule worth repeating here, because getting it wrong is invisible until a
-user complains: **never write the hash on every keystroke, and never push the
-hash value back into an editor the user is typing in.** Keep local state as the
-immediate source for rendering and debounce the write; guard the editor against
-the echo of its own edit. See `lib/markdown/useMarkdown.ts` and
-`components/CodeMirror.tsx`.
-
-## Weight
-
-The page is small and renders content; anything heavier is fetched when it is
-actually needed. Measured on the production build:
-
-| | initial | after opening the editor |
-|---|---|---|
-| `/markdown` | 1.1 KB HTML + 329 KB JS | +610 KB |
-| `/echo` | 1.3 KB HTML + 191 KB JS | — |
-
-The rule for a new frame: **import a heavy dependency dynamically, inside the
-component that needs it.** Vite then splits it into its own chunk and the
-browser fetches it on mount, not on load.
-[`components/CodeMirror.tsx`](./components/CodeMirror.tsx) is the worked
-example — every CodeMirror import is dynamic and only the types are imported
-statically, so a markdown frame opened read-only ships none of the editor.
-The same applies to the frames still to migrate: pyodide, molstar, ffmpeg,
-monaco and the tfjs models should each stay out of their frame's first load.
-
-What legitimately belongs in the initial chunk is the frame's actual content
-renderer (markdown-it for the markdown frame) and `@metapages/metapage`, which
-has to connect to the parent metapage promptly to receive inputs.
+| absent / `invisible` | the open-menu button is transparent until hovered, but always clickable |
+| `visible` | the open-menu button is always drawn |
+| `disabled` | no menu and no button, ever |
 
 ## Commands
 

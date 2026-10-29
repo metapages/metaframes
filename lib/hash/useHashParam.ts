@@ -1,16 +1,22 @@
-// Preact-native hooks over the framework-agnostic @metapages/hash-query core.
+// Preact hooks over @metapages/hash-query.
 //
-// We deliberately do NOT use @metapages/hash-query/react-hooks (it imports
-// "react"). The core functions below produce the exact same on-the-wire hash
-// format (`#<prefix>?key=value&...`, sorted keys, base64/JSON encoding), so
-// every URL already published by the existing metaframes keeps working.
+// The module owns the hash wire format — encoding, key order, notification —
+// and nothing in this repo may reimplement any of it. See the `hash-params`
+// skill. These hooks only adapt its API to Preact: reads come from its
+// getters, writes from its setters, and updates from its per-key
+// `addEventListenerHashParam*` subscriptions.
 //
-// The core dispatches a synthetic HashChangeEvent after it rewrites the hash
-// with replaceState, so subscribing to "hashchange" also picks up writes made
-// by this page.
+// We deliberately do NOT use @metapages/hash-query/react-hooks, which imports
+// "react". The wire format is identical either way, so URLs already published
+// by the existing metaframes keep working.
 
-import { useCallback, useEffect, useState } from "preact/hooks";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import {
+  addEventListenerHashParamBase64,
+  addEventListenerHashParamBoolean,
+  addEventListenerHashParamFloat,
+  addEventListenerHashParamInt,
+  addEventListenerHashParamJson,
   getHashParamFromWindow,
   getHashParamValueBase64DecodedFromWindow,
   getHashParamValueBooleanFromWindow,
@@ -33,37 +39,61 @@ export type HashParamSetter<T> = (
   opts?: SetHashParamOpts,
 ) => void;
 
+type Subscribe<T> = (
+  key: string,
+  listener: (value: T | undefined) => void,
+) => () => void;
+
 /**
- * Re-render whenever the hash changes, returning a version counter.
+ * True when a new value is indistinguishable from the one already held.
  *
- * For code that reads params whose keys are not known at compile time — the
- * shared shell interpreting a frame's declared `toolbar`, for instance, where
- * one hook per item would make the hook count depend on configuration. Read
- * values with the @metapages/hash-query getters; this only drives the update.
+ * This matters more than it looks: the JSON getter builds a fresh object on
+ * every read, so without this every subscriber of every param re-renders on
+ * every hash write, and anything keyed on that object's identity (a frame's
+ * render effect) redoes its work.
  */
-export function useHashChange(): number {
-  const [version, setVersion] = useState(0);
-  useEffect(() => {
-    if (!IS_BROWSER) return;
-    const bump = () => setVersion((v) => v + 1);
-    bump(); // the hash was not known during SSR
-    globalThis.addEventListener("hashchange", bump);
-    return () => globalThis.removeEventListener("hashchange", bump);
-  }, []);
-  return version;
+function unchanged<T>(a: T, b: T): boolean {
+  if (Object.is(a, b)) return true;
+  if (
+    typeof a !== "object" || typeof b !== "object" || a === null || b === null
+  ) {
+    return false;
+  }
+  return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** Subscribe a reader to hashchange events and return its current value. */
-function useHashValue<T>(read: () => T): T {
-  const [value, setValue] = useState<T>(read);
+/**
+ * One hash param as Preact state: seeded synchronously so there is no flash,
+ * then kept current by the module's own per-key subscription.
+ */
+function useHashParamValue<T>(
+  key: string,
+  read: () => T | undefined,
+  subscribe: Subscribe<T>,
+  defaultValue: T,
+): T {
+  const [value, setValue] = useState<T>(() => {
+    const v = IS_BROWSER ? read() : undefined;
+    return v === undefined ? defaultValue : v;
+  });
+
+  // Held in refs so neither re-subscribes: callers routinely pass an inline
+  // default (`useHashParamJson("options", {})`), which is a new object every
+  // render.
+  const current = useRef(value);
+  current.current = value;
+  const fallback = useRef(defaultValue);
+  fallback.current = defaultValue;
 
   useEffect(() => {
     if (!IS_BROWSER) return;
-    const update = () => setValue(read());
-    update(); // sync once on mount (SSR produced the default)
-    globalThis.addEventListener("hashchange", update);
-    return () => globalThis.removeEventListener("hashchange", update);
-  }, []);
+    return subscribe(key, (incoming) => {
+      const next = incoming === undefined ? fallback.current : incoming;
+      if (unchanged(current.current, next)) return;
+      current.current = next;
+      setValue(next);
+    });
+  }, [key]);
 
   return value;
 }
@@ -73,8 +103,19 @@ export function useHashParam(
   key: string,
   defaultValue = "",
 ): [string, HashParamSetter<string>] {
-  const value = useHashValue<string>(() =>
-    getHashParamFromWindow(key) ?? defaultValue
+  // The module exposes no per-key subscription for plain strings, so this
+  // mirrors what its own useHashParam does: listen for `hashchange` and read
+  // back through the module's getter. The getter is the part that matters —
+  // the hash is never parsed here.
+  const value = useHashParamValue<string>(
+    key,
+    () => getHashParamFromWindow(key),
+    (k, listener) => {
+      const onChange = () => listener(getHashParamFromWindow(k));
+      globalThis.addEventListener("hashchange", onChange);
+      return () => globalThis.removeEventListener("hashchange", onChange);
+    },
+    defaultValue,
   );
   const setValue = useCallback<HashParamSetter<string>>(
     (v, opts) => setHashParamInWindow(key, v, opts),
@@ -88,8 +129,11 @@ export function useHashParamBase64(
   key: string,
   defaultValue = "",
 ): [string, HashParamSetter<string>] {
-  const value = useHashValue<string>(() =>
-    getHashParamValueBase64DecodedFromWindow(key) ?? defaultValue
+  const value = useHashParamValue<string>(
+    key,
+    () => getHashParamValueBase64DecodedFromWindow(key),
+    addEventListenerHashParamBase64,
+    defaultValue,
   );
   const setValue = useCallback<HashParamSetter<string>>(
     (v, opts) => setHashParamValueBase64EncodedInWindow(key, v, opts),
@@ -103,10 +147,12 @@ export function useHashParamJson<T>(
   key: string,
   defaultValue: T,
 ): [T, HashParamSetter<T>] {
-  const value = useHashValue<T>(() => {
-    const v = getHashParamValueJsonFromWindow<T>(key);
-    return v === undefined ? defaultValue : v;
-  });
+  const value = useHashParamValue<T>(
+    key,
+    () => getHashParamValueJsonFromWindow<T>(key),
+    addEventListenerHashParamJson as Subscribe<T>,
+    defaultValue,
+  );
   const setValue = useCallback<HashParamSetter<T>>(
     (v, opts) => setHashParamValueJsonInWindow(key, v, opts),
     [key],
@@ -114,13 +160,16 @@ export function useHashParamJson<T>(
   return [value, setValue];
 }
 
-/** A boolean hash param, e.g. `debug` / `edit`. */
+/** A boolean hash param, e.g. `edit` / `debug`. */
 export function useHashParamBoolean(
   key: string,
   defaultValue = false,
 ): [boolean, HashParamSetter<boolean>] {
-  const value = useHashValue<boolean>(() =>
-    getHashParamValueBooleanFromWindow(key) ?? defaultValue
+  const value = useHashParamValue<boolean>(
+    key,
+    () => getHashParamValueBooleanFromWindow(key),
+    addEventListenerHashParamBoolean,
+    defaultValue,
   );
   const setValue = useCallback<HashParamSetter<boolean>>(
     (v, opts) => setHashParamValueBooleanInWindow(key, v, opts),
@@ -134,8 +183,11 @@ export function useHashParamInt(
   key: string,
   defaultValue?: number,
 ): [number | undefined, HashParamSetter<number>] {
-  const value = useHashValue<number | undefined>(() =>
-    getHashParamValueIntFromWindow(key) ?? defaultValue
+  const value = useHashParamValue<number | undefined>(
+    key,
+    () => getHashParamValueIntFromWindow(key),
+    addEventListenerHashParamInt as Subscribe<number | undefined>,
+    defaultValue,
   );
   const setValue = useCallback<HashParamSetter<number>>(
     (v, opts) => setHashParamValueIntInWindow(key, v, opts),
@@ -149,8 +201,11 @@ export function useHashParamFloat(
   key: string,
   defaultValue?: number,
 ): [number | undefined, HashParamSetter<number>] {
-  const value = useHashValue<number | undefined>(() =>
-    getHashParamValueFloatFromWindow(key) ?? defaultValue
+  const value = useHashParamValue<number | undefined>(
+    key,
+    () => getHashParamValueFloatFromWindow(key),
+    addEventListenerHashParamFloat as Subscribe<number | undefined>,
+    defaultValue,
   );
   const setValue = useCallback<HashParamSetter<number>>(
     (v, opts) => setHashParamValueFloatInWindow(key, v, opts),

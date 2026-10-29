@@ -2,12 +2,13 @@ import type { ComponentChildren, JSX } from "preact";
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { isIframe } from "@metapages/metapage";
 import {
+  addEventListenerHashParamBoolean,
   getHashParamValueBooleanFromWindow,
   setHashParamValueBooleanInWindow,
 } from "@metapages/hash-query";
 import type { FrameOption, ToolbarItem } from "../lib/registry.ts";
 import { type HelpConfig, helpUrlFrom } from "../lib/help.ts";
-import { useHashChange, useHashParam } from "../lib/hash/useHashParam.ts";
+import { useHashParam } from "../lib/hash/useHashParam.ts";
 import { type HeaderAction, MainHeader } from "./MainHeader.tsx";
 import { PanelHeader } from "./PanelHeader.tsx";
 import { OptionsPanel } from "./OptionsPanel.tsx";
@@ -114,9 +115,6 @@ export function FrameShell(
   const [mounted, setMounted] = useState(false);
   const [menuHidden, setMenuHidden] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  // Panels can persist their open state in a hash param, so the selection is
-  // read back out of the hash; this keeps every read below fresh.
-  const hashVersion = useHashChange();
 
   useEffect(() => {
     setMenuHidden(menuHiddenDefault ?? isIframe());
@@ -158,18 +156,36 @@ export function FrameShell(
 
   // Ephemeral selection, for panels with no hash param of their own.
   const [localPanel, setLocalPanel] = useState<string | null>(null);
+  // Selection that lives in the hash, so a shared URL reopens the same panel.
+  const [hashPanel, setHashPanel] = useState<string | null>(null);
 
   /**
-   * The one open panel. A panel with a `param` is open when that param is set,
-   * so a shared URL reopens it; everything else is local UI state.
+   * Which panels own a hash param. A stable string, so the subscriptions below
+   * are not torn down and rebuilt every time a panel's content changes (the
+   * markdown editor's content changes on every keystroke).
    */
-  const activeKey = useMemo(() => {
-    void hashVersion;
-    const fromHash = allPanels.find((p) =>
-      p.param && getHashParamValueBooleanFromWindow(p.param)
-    );
-    return fromHash?.key ?? localPanel;
-  }, [allPanels, localPanel, hashVersion]);
+  const panelParams = allPanels
+    .filter((p) => p.param)
+    .map((p) => `${p.key}:${p.param}`)
+    .join(",");
+
+  useEffect(() => {
+    if (!panelParams) return;
+    const disposers = panelParams.split(",").map((entry) => {
+      const [key, param] = entry.split(":");
+      // The module's own per-key subscription: it decodes the value and tells
+      // us when that one param changes.
+      return addEventListenerHashParamBoolean(param, (open) => {
+        setHashPanel((previous) =>
+          open ? key : previous === key ? null : previous
+        );
+      });
+    });
+    return () => disposers.forEach((dispose) => dispose());
+  }, [panelParams]);
+
+  /** The one open panel: a hash-backed one wins, else the ephemeral choice. */
+  const activeKey = hashPanel ?? localPanel;
 
   /** Selecting a panel closes whichever was open: one slot, tab semantics. */
   const selectPanel = useCallback((key: string | null) => {

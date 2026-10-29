@@ -120,6 +120,24 @@ server-side would flash chrome in every embed. These frames are hash-param
 driven — the fragment never reaches the server — so the UI is an island by
 nature.
 
+## Hash params
+
+The URL hash is a frame's state, and [`@metapages/hash-query`](https://www.npmjs.com/package/@metapages/hash-query)
+owns its wire format. **Never hand-roll any part of it** — no `atob`/`btoa`, no
+`location.hash` slicing, no string-concatenated `#?a=1&b=2`. Use the Preact
+wrappers in [`lib/hash/useHashParam.ts`](./lib/hash/useHashParam.ts), or the
+module's own getters, setters and `addEventListenerHashParam*` subscriptions
+outside a component. Full rules, including the compatibility constraints that
+keep published metapage URLs working, are in the `hash-params` skill
+([`.claude/skills/hash-params/SKILL.md`](./.claude/skills/hash-params/SKILL.md)).
+
+One rule worth repeating here, because getting it wrong is invisible until a
+user complains: **never write the hash on every keystroke, and never push the
+hash value back into an editor the user is typing in.** Keep local state as the
+immediate source for rendering and debounce the write; guard the editor against
+the echo of its own edit. See `lib/markdown/useMarkdown.ts` and
+`components/CodeMirror.tsx`.
+
 ## Weight
 
 The page is small and renders content; anything heavier is fetched when it is

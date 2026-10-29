@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
-import { setHashParamInWindow } from "@metapages/hash-query";
+import {
+  setHashParamInWindow,
+  stringFromBase64String,
+} from "@metapages/hash-query";
 import { useHashParam, useHashParamBase64 } from "../hash/useHashParam.ts";
 import { useMetaframe } from "../metaframe/useMetaframe.ts";
 
@@ -10,11 +13,11 @@ export const HashKeyMarkdownLegacy = "base64";
 export const HashKeyUrl = "url";
 
 /**
- * Base64 here is `btoa(encodeURIComponent(s))`, not bare `btoa`: bare btoa
- * throws on any non-Latin1 character and corrupts `%`.
+ * Metaframe inputs can arrive base64-encoded. Decoding goes through
+ * @metapages/hash-query, which owns the encoding (`btoa(encodeURIComponent(s))`
+ * — bare `atob`/`btoa` throws on non-Latin1 text and corrupts `%`).
  */
-const decodeMarkdown = (b64: string): string =>
-  decodeURIComponent(globalThis.atob(b64));
+const decodeMarkdown = (b64: string): string => stringFromBase64String(b64);
 
 /** Rewrite relative image references so they resolve against the fetched doc. */
 function absolutizeImages(markdown: string, docUrl: string): string {
@@ -42,6 +45,17 @@ function absolutizeImages(markdown: string, docUrl: string): string {
  * `mermaid-base64`), a `url` hash param fetched over CORS, or the `md` /
  * legacy `base64` hash param.
  */
+/**
+ * How long after the last keystroke the document is written to the hash.
+ *
+ * The hash is the shareable state, not a keystroke log: writing it per
+ * keystroke rewrites the URL and wakes every subscriber on the page. The
+ * preview does not wait for it — local state drives rendering immediately —
+ * so this delay is invisible while typing. framejs.io debounces its code
+ * commits for the same reason.
+ */
+const HASH_COMMIT_DEBOUNCE_MS = 500;
+
 export function useMarkdown(): [string, (markdown: string) => void] {
   const metaframe = useMetaframe();
   const [url] = useHashParam(HashKeyUrl);
@@ -51,19 +65,41 @@ export function useMarkdown(): [string, (markdown: string) => void] {
   const [markdown, setMarkdown] = useState("");
   const fromUrlRef = useRef<string | undefined>(undefined);
   const previousInputRef = useRef<string | undefined>(undefined);
+  /**
+   * Text this page authored and has not yet seen echoed back out of the hash.
+   * Without it the debounced write returns as an "external" change and fights
+   * whatever has been typed since.
+   */
+  const localRef = useRef<string | null>(null);
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
 
   const setIfNew = useCallback((next: string) => {
     if (previousInputRef.current === next) return;
     previousInputRef.current = next;
+    localRef.current = null;
     setMarkdown(next);
   }, []);
 
-  /** Persist edited markdown; writing content invalidates any `url` param. */
+  /**
+   * Persist edited markdown. The preview updates on this keystroke; the hash
+   * catches up once typing pauses. Writing content invalidates any `url`.
+   */
   const setMarkdownAndPersist = useCallback((next: string) => {
     if (fromUrlRef.current === next) return;
-    setFromHash(next === "" ? undefined : next);
-    setHashParamInWindow(HashKeyUrl, undefined);
+    localRef.current = next;
+    setMarkdown(next);
+
+    clearTimeout(commitTimer.current);
+    commitTimer.current = setTimeout(() => {
+      setFromHash(next === "" ? undefined : next);
+      setHashParamInWindow(HashKeyUrl, undefined);
+    }, HASH_COMMIT_DEBOUNCE_MS);
   }, [setFromHash]);
+
+  // Do not strand an unwritten edit if the editor closes mid-debounce.
+  useEffect(() => () => clearTimeout(commitTimer.current), []);
 
   // Metaframe inputs.
   useEffect(() => {
@@ -143,10 +179,14 @@ export function useMarkdown(): [string, (markdown: string) => void] {
 
   // `md` / legacy `base64` hash param.
   useEffect(() => {
-    if (!fromHash && !fromHashLegacy) return;
     let md = fromHash || fromHashLegacy || "";
+    // The debounced write coming back to us. Ignore it: acting on it would
+    // replace whatever has been typed in the meantime.
+    if (md === localRef.current) return;
+    localRef.current = null;
     // Older versions URI-encoded the content inside the hash param; anything
-    // starting with `%` is from that era.
+    // starting with `%` is from that era. This is a content-encoding shim, not
+    // hash parsing — the value itself already came from the module's getter.
     if (md.startsWith("%")) md = decodeURIComponent(md);
     setMarkdown(md);
   }, [fromHash, fromHashLegacy]);

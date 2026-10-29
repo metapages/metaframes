@@ -38,7 +38,7 @@
     "@tailwindcss/vite": "npm:@tailwindcss/vite@^4.1.12",
     "wrangler": "npm:wrangler@^4.52.0",
     "@metapages/metapage": "npm:@metapages/metapage@^1.8.25",
-    "@metapages/hash-query": "npm:@metapages/hash-query@^0.9.8",
+    "@metapages/hash-query": "npm:@metapages/hash-query@^0.11.0",
     "markdown-it": "npm:markdown-it@^14.1.0",
     "markdown-it-anchor": "npm:markdown-it-anchor@^9.2.0",
     "@types/markdown-it": "npm:@types/markdown-it@^14.1.2",

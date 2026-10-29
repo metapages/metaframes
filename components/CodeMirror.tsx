@@ -42,6 +42,13 @@ export function CodeMirror({ value, language, onChange, class: cls }: Props) {
   onChangeRef.current = onChange;
   const valueRef = useRef(value);
   valueRef.current = value;
+  /**
+   * The last text this editor emitted. External updates are pushed into the
+   * buffer, but the echo of our own edit must not be: by the time it arrives
+   * the user has usually typed more, and overwriting would drop those
+   * keystrokes and leave the view lagging unpredictably.
+   */
+  const lastEmitted = useRef<string | null>(null);
 
   const [failed, setFailed] = useState(false);
 
@@ -86,7 +93,10 @@ export function CodeMirror({ value, language, onChange, class: cls }: Props) {
           keymap.of([indentWithTab]),
           languageCompartment.of([]),
           EditorView.updateListener.of((u) => {
-            if (u.docChanged) onChangeRef.current(u.state.doc.toString());
+            if (!u.docChanged) return;
+            const text = u.state.doc.toString();
+            lastEmitted.current = text;
+            onChangeRef.current(text);
           }),
           EditorView.theme({
             "&": { height: "100%" },
@@ -123,6 +133,7 @@ export function CodeMirror({ value, language, onChange, class: cls }: Props) {
   useEffect(() => {
     const v = view.current;
     if (!v) return;
+    if (value === lastEmitted.current) return; // our own edit, coming back
     const current = v.state.doc.toString();
     if (value !== current) {
       v.dispatch({ changes: { from: 0, to: current.length, insert: value } });

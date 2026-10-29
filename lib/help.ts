@@ -1,4 +1,5 @@
 import { FRAMES } from "./registry.ts";
+import { setHashParamsInUrl } from "@metapages/hash-query";
 import { frameBaseUrl } from "./host.ts";
 
 /**
@@ -43,9 +44,7 @@ export function helpConfig(frameName: string): HelpConfig {
  * links to port 443.
  *
  * Reproduces the convention every existing metaframe uses:
- * `<markdown-origin>/#?hm=disabled&url=<frame-origin>/README.md`. The `url`
- * value is intentionally NOT percent-encoded — the hash parser splits on `&`
- * and the first `=` only, and the markdown frame reads the raw stored value.
+ * `<markdown-origin>/#?hm=disabled&url=<frame-origin>/README.md`.
  */
 export function helpUrlFrom(config: HelpConfig, loc?: Location): string {
   const self = frameBaseUrl(config.frame, config.frameLabel, loc);
@@ -55,5 +54,10 @@ export function helpUrlFrom(config: HelpConfig, loc?: Location): string {
     ? frameBaseUrl(config.viewer, config.viewerLabel, loc)
     : FALLBACK_MARKDOWN_ORIGIN;
 
-  return `${viewer}/#?hm=disabled&url=${readme}`;
+  // Built with the hash-query setter rather than string concatenation, so the
+  // encoding is the module's business and round-trips through its getters.
+  return setHashParamsInUrl(new URL(`${viewer}/`), {
+    hm: "disabled",
+    url: readme,
+  }).href;
 }

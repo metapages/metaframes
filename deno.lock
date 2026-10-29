@@ -36,7 +36,7 @@
     "npm:@codemirror/lang-markdown@^6.3.1": "6.5.2",
     "npm:@codemirror/state@^6.5.2": "6.7.6",
     "npm:@codemirror/view@^6.36.0": "6.43.15",
-    "npm:@metapages/hash-query@~0.9.8": "0.9.12_react@19.3.1",
+    "npm:@metapages/hash-query@0.11": "0.11.0",
     "npm:@metapages/metapage@^1.8.25": "1.10.15_react@19.3.1",
     "npm:@opentelemetry/api@^1.9.0": "1.10.0",
     "npm:@preact/signals@^2.3.2": "2.11.3_preact@10.29.8__preact-render-to-string@6.8.1_preact-render-to-string@6.8.1__preact@10.29.8",
@@ -1186,6 +1186,12 @@
         "mutative"
       ]
     },
+    "@metapages/hash-query@0.11.0": {
+      "integrity": "sha512-iYoVTiVyjXVM7rFG+35XND9Jt5HydPKnGQIC+Ia3Pjyaq34p+orGKWUp3BoN+b4cxJLA7BP39gTD1i+RFbbCQg==",
+      "dependencies": [
+        "fast-json-stable-stringify"
+      ]
+    },
     "@metapages/hash-query@0.9.12_react@19.3.1": {
       "integrity": "sha512-bCQNfh95CBZ2L91ACJfGkSQCA5mFpm2SQxew+6wFQ7BqPPtSDszkwdPmVEcIJQ6dSjmmT92xWW2ighmTS9yiZA==",
       "dependencies": [
@@ -1197,7 +1203,7 @@
       "integrity": "sha512-mwsqkA4CXwhUYfz6jG/wVIXp49HfWx1CHbWUb/ODfmKL6nrVyutMCW1vrMPOjFHrclAr19nGPFbcQyx7rBXiNw==",
       "dependencies": [
         "@metapages/dataref",
-        "@metapages/hash-query",
+        "@metapages/hash-query@0.9.12_react@19.3.1",
         "base64-arraybuffer",
         "compare-versions",
         "eventemitter3",
@@ -2308,7 +2314,7 @@
       "npm:@codemirror/lang-markdown@^6.3.1",
       "npm:@codemirror/state@^6.5.2",
       "npm:@codemirror/view@^6.36.0",
-      "npm:@metapages/hash-query@~0.9.8",
+      "npm:@metapages/hash-query@0.11",
       "npm:@metapages/metapage@^1.8.25",
       "npm:@preact/signals@^2.3.2",
       "npm:@tailwindcss/vite@^4.1.12",

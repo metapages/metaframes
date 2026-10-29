@@ -68,6 +68,42 @@ The point of the monorepo. Most of a metaframe used to be these:
 | [`lib/metaframe/useMetaframe.ts`](./lib/metaframe/useMetaframe.ts) | the metaframe postMessage protocol as hooks: inputs, outputs |
 | [`components/CodeMirror.tsx`](./components/CodeMirror.tsx) | editor, grammars loaded on demand |
 
+### The renderer is the page; everything else is the menu
+
+A frame's renderer sits in one fixed position in a single element tree and is
+never moved or unmounted by the chrome. Everything else — an editor, settings,
+help — is *the menu*, and opens in one shared column beside it. Hiding the menu
+hides all of it, so an embedded frame is just the renderer.
+
+Two rules fall out of that, and both exist because breaking them caused real
+bugs:
+
+- **Never branch the element tree on chrome state.** Returning a different tree
+  for "menu hidden" makes Preact recreate the renderer's DOM node. Any frame
+  that writes its own HTML (markdown, and later mermaid, plotly, molstar,
+  jsoncrack) then goes silently blank, because the effect that filled the node
+  does not re-run. `FrameShell` renders one tree and toggles pieces inside it.
+
+- **A frame that injects HTML must hold its node in state, not a ref.** Use a
+  ref *callback* (`ref={setRoot}`) and put the node in the effect's deps, so
+  the content is rewritten if the node is ever replaced:
+
+  ```tsx
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!root) return;
+    root.innerHTML = render(...);
+  }, [root, ...]);
+  return <div ref={setRoot} />;
+  ```
+
+The header holds **one** selection. Panels behave like tabs — opening one
+closes the last — because two lit buttons read as two independent toggles.
+Plain actions (copy, links) never render as selected. A panel may persist its
+open state in a hash param (`edit` for the markdown editor) so a shared URL
+reopens it; state travels between a panel and the renderer through hash params
+only, so neither needs to know about the other.
+
 ### `hm` — how much chrome to show
 
 Reproduced exactly from the metaframes this replaces, because published metapage

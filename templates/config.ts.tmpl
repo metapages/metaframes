@@ -13,9 +13,9 @@ export const wordmark = "__NAME__";
 export const options: FrameOption[] = [];
 
 /**
- * Frame-specific header controls, interpreted by the shared shell — declare
- * them here rather than writing buttons and handlers. e.g.
- *
- *   { kind: "hashParamToggle", param: "edit", label: "edit", icon: "pencil" }
+ * Plain header actions — external links and the like. Anything that *opens*
+ * something is a panel instead: pass `panels` to FrameShell (see the markdown
+ * frame's island) so it joins the one shared panel slot and the header's
+ * single selection.
  */
 export const toolbar: ToolbarItem[] = [];

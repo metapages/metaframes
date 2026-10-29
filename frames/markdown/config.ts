@@ -28,16 +28,8 @@ export const options: FrameOption[] = [
   },
 ];
 
-/**
- * The editor toggle is declared, not written: the shell turns this into a
- * header icon wired to the `edit` hash param, and the island reads the same
- * param with useHashParamBoolean. No button, no handler, no per-frame code.
- */
-export const toolbar: ToolbarItem[] = [
-  {
-    kind: "hashParamToggle",
-    param: "edit",
-    label: "edit",
-    icon: "pencil",
-  },
-];
+// The editor is not a toolbar item: it opens the shell's shared panel, so it
+// is declared as a panel in the island (see (_islands)/MarkdownView.tsx) and
+// gets its header button, its selected state and its `edit` hash param from
+// the shell. Toolbar items are for plain actions like external links.
+export const toolbar: ToolbarItem[] = [];

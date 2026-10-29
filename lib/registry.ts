@@ -8,32 +8,21 @@
 import type { IconName } from "../components/icons.tsx";
 
 /**
- * A toolbar control, declared as data in a frame's frame.ts and interpreted by
+ * A toolbar control, declared as data in a frame's config.ts and interpreted by
  * the shared shell (components/MainHeader.tsx).
  *
- * This is the "configuration, not duplicated code" seam: a frame that wants an
- * Edit toggle in the header says so here rather than writing a button, a
- * handler and a hash-param hook of its own. Add a `kind` when a second frame
- * needs the same behaviour — not before.
+ * Only plain actions live here. Anything that *opens* something is a panel
+ * instead (see FramePanel), because the header holds one selection: a button
+ * that stays lit while another is also lit reads as two independent toggles.
+ *
+ * Add a `kind` when a second frame needs the same behaviour — not before.
  */
-export type ToolbarItem =
-  /**
-   * Flips a boolean hash param. The frame's own UI reads the same param with
-   * useHashParamBoolean, so the two stay in sync with no wiring.
-   */
-  | {
-    kind: "hashParamToggle";
-    param: string;
-    label: string;
-    icon: IconName;
-  }
-  /** Opens a URL in a new tab. */
-  | {
-    kind: "link";
-    href: string;
-    label: string;
-    icon: IconName;
-  };
+export type ToolbarItem = {
+  kind: "link";
+  href: string;
+  label: string;
+  icon: IconName;
+};
 
 /** A declarative settings-form field, rendered by components/OptionsPanel.tsx. */
 export interface FrameOption {

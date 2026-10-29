@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useMemo, useState } from "preact/hooks";
 import markdownit from "markdown-it";
 import markdownItAnchor from "markdown-it-anchor";
 import { FrameShell } from "../../../components/FrameShell.tsx";
@@ -6,7 +6,6 @@ import type { HelpConfig } from "../../../lib/help.ts";
 import { CodeMirror } from "../../../components/CodeMirror.tsx";
 import {
   useHashParam,
-  useHashParamBoolean,
   useHashParamJson,
 } from "../../../lib/hash/useHashParam.ts";
 import { useMarkdown } from "../../../lib/markdown/useMarkdown.ts";
@@ -61,18 +60,17 @@ function renderMarkdown(source: string, options: Options): string {
 export function MarkdownView({ help }: { help: HelpConfig }) {
   const [markdown, setMarkdown] = useMarkdown();
   const [viewOptions] = useHashParamJson<Options>("options", {});
-  // Written by the shell's declared `edit` toolbar toggle (see ../config.ts) —
-  // this side only reads it.
-  const [edit] = useHashParamBoolean("edit");
   const [bgColor] = useHashParam("bgColor");
   const [editorWidth] = useHashParam("editorWidth", "80ch");
-  const rootRef = useRef<HTMLDivElement>(null);
+  // A ref *callback* into state, not useRef: the effect below writes HTML into
+  // this node, so it has to re-run if the node is ever replaced. A plain ref
+  // would leave the new node empty and the frame blank, with no error.
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
 
   // Rendered HTML is injected directly rather than built as a VNode tree:
   // markdown-it emits HTML, and mermaid then mutates those nodes itself, so
   // this subtree must stay outside Preact's control.
   useEffect(() => {
-    const root = rootRef.current;
     if (!root) return;
     try {
       root.innerHTML = renderMarkdown(markdown, viewOptions);
@@ -87,7 +85,27 @@ export function MarkdownView({ help }: { help: HelpConfig }) {
         .then((m) => m.run({ querySelector: ".mermaid" }).catch(() => {}))
         .catch(() => {});
     }
-  }, [markdown, viewOptions]);
+  }, [root, markdown, viewOptions]);
+
+  // The editor is part of the menu, not the renderer: it opens in the shell's
+  // shared panel, so hiding the menu hides it too and an embedded frame is
+  // just the rendered document. The two communicate only through the `md` hash
+  // param — the editor writes it, the renderer reads it.
+  const panels = useMemo(() => [{
+    key: "editor",
+    label: "editor",
+    icon: "pencil" as const,
+    // Published URLs use `edit=true` to open the editor; keep that contract.
+    param: "edit",
+    width: editorWidth,
+    content: (
+      <CodeMirror
+        value={markdown}
+        language="markdown"
+        onChange={setMarkdown}
+      />
+    ),
+  }], [markdown, setMarkdown, editorWidth]);
 
   return (
     <FrameShell
@@ -96,29 +114,16 @@ export function MarkdownView({ help }: { help: HelpConfig }) {
       help={help}
       options={options}
       toolbar={toolbar}
+      panels={panels}
     >
       <div
-        class="flex h-full w-full bg-surface"
+        class="h-full w-full bg-surface"
         style={bgColor ? { background: bgColor } : undefined}
       >
-        {edit && (
-          <div
-            class="min-w-0 shrink-0 border-r border-line"
-            style={{ width: editorWidth }}
-          >
-            <CodeMirror
-              value={markdown}
-              language="markdown"
-              onChange={setMarkdown}
-            />
-          </div>
-        )}
-        <div class="relative min-w-0 flex-1">
-          <div
-            ref={rootRef}
-            class="markdown-body absolute inset-0 overflow-auto px-6 py-5"
-          />
-        </div>
+        <div
+          ref={setRoot}
+          class="markdown-body h-full overflow-auto px-6 py-5"
+        />
       </div>
     </FrameShell>
   );

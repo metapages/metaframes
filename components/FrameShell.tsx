@@ -15,32 +15,45 @@ import { HelpPanel } from "./HelpPanel.tsx";
 import { IconList } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
 
-/** A panel a frame supplies itself, when configuration cannot express it. */
+/**
+ * A panel a frame supplies itself — an editor, an inspector — for what
+ * configuration cannot describe.
+ */
 export interface FramePanel {
   key: string;
   label: string;
   icon: IconName;
   content: ComponentChildren;
+  /**
+   * Persist "this panel is open" in a hash param, so a shared URL reopens it
+   * (the markdown frame's `edit`). Panels without one are ephemeral UI.
+   */
+  param?: string;
+  /** CSS width of the panel column. Defaults to half the frame. */
+  width?: string;
 }
 
 export interface FrameShellProps {
   /** Mono wordmark in the header, the way framejs.io shows "js". */
   wordmark: string;
-  /** Human title, used for the window/panel labels. */
+  /** Human title, used for the wordmark tooltip. */
   title: string;
   /**
    * How to reach this frame's help. Resolved to a URL in the browser, where
    * `location` is authoritative — see lib/help.ts for why the server is not.
    */
   help: HelpConfig;
-  /** The main view. Always mounted, even while a panel covers it. */
+  /**
+   * The frame's output — the thing it exists to show. Always mounted, in one
+   * fixed position, whatever the chrome is doing.
+   */
   children: ComponentChildren;
   /** Declarative settings schema; omit for a frame with no settings. */
   options?: FrameOption[];
   optionsHashKey?: string;
-  /** Header controls declared as data in the frame's frame.ts. */
+  /** Header controls declared as data in the frame's config.ts. */
   toolbar?: ToolbarItem[];
-  /** Bespoke panels, for what configuration cannot describe. */
+  /** Panels the frame supplies, shown in the same slot as settings and help. */
   panels?: FramePanel[];
   /**
    * Whether the chrome starts hidden. Defaults to "hidden when embedded",
@@ -50,25 +63,39 @@ export interface FrameShellProps {
 }
 
 /**
- * The chrome every frame shares, following the framejs.io editor: a 40px
- * header of icon actions over a full-bleed main view, with settings and help
- * opening as panels rather than tabs.
+ * The chrome every frame shares, following the framejs.io editor.
  *
- * Frames do not write any of this. They declare a `toolbar` and `options` as
- * data and render their main view; the shell supplies the header, the panels,
- * the copy-URL action and the `hm` chrome modes.
+ * The shape, and why:
  *
- * `hm` semantics are reproduced exactly from the metaframes this replaces,
- * because published metapage URLs set it:
+ * - The frame's renderer is the page. It sits in one fixed position in a
+ *   single element tree and is never moved or unmounted by the chrome.
+ *   Branching the tree on chrome state (as this did before) makes Preact
+ *   recreate the renderer's DOM, which silently empties any frame that writes
+ *   its own HTML — the markdown frame went blank the moment the menu was
+ *   hidden. A frame's renderer must be able to assume its node survives.
  *
- *   undefined | "visible"  chrome hidden when embedded, toggle button shown
- *   "invisible"            toggle rendered but transparent (still clickable)
- *   "disabled"             no chrome and no toggle, ever
+ * - Everything else — the editor, settings, help — is *the menu*, and opens in
+ *   one shared column beside the renderer. Hiding the menu hides all of it, so
+ *   an embedded frame is just the renderer: small, light, nothing else loaded.
+ *
+ * - That column holds exactly one panel at a time, like tabs. Two panels open
+ *   at once reads as two independent toggles, which is what it is not.
+ *
+ * - State between a panel and the renderer travels through hash params (the
+ *   editor writes `md`, the renderer reads it), so the two never need to know
+ *   about each other.
+ *
+ * `hm` semantics, reproduced from the metaframes this replaces because
+ * published metapage URLs set it:
+ *
+ *   undefined | "invisible"  chrome hidden when embedded; the toggle is
+ *                            transparent until hovered, but always clickable
+ *   "visible"                as above, but the toggle is always drawn
+ *   "disabled"               no chrome and no toggle, ever
  *
  * The chrome renders only after mount: `isIframe()` is false during SSR, so
  * deciding server-side would show chrome for one frame in every embed and
- * cause a hydration mismatch. The metaframes this replaces were entirely
- * client-rendered, so this is not a regression.
+ * cause a hydration mismatch.
  */
 export function FrameShell(
   {
@@ -86,10 +113,9 @@ export function FrameShell(
   const [mode] = useHashParam("hm");
   const [mounted, setMounted] = useState(false);
   const [menuHidden, setMenuHidden] = useState(false);
-  const [shownPanel, setShownPanel] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  // Toolbar items are configuration, so their params are not known at compile
-  // time; one subscription keeps every read below fresh.
+  // Panels can persist their open state in a hash param, so the selection is
+  // read back out of the hash; this keeps every read below fresh.
   const hashVersion = useHashChange();
 
   useEffect(() => {
@@ -109,6 +135,7 @@ export function FrameShell(
       .catch(() => setToast("Could not copy URL"));
   }, []);
 
+  /** Frame panels first, then the two the shell always provides. */
   const allPanels = useMemo<FramePanel[]>(() => {
     const list = [...panels];
     if (options?.length) {
@@ -129,121 +156,134 @@ export function FrameShell(
     return list;
   }, [panels, options, optionsHashKey, help, mounted]);
 
-  /** Frame-declared toolbar items, interpreted here so frames stay code-free. */
-  const toolbarActions = useMemo<HeaderAction[]>(() => {
-    // hashVersion is the dependency that makes the reads below re-run.
+  // Ephemeral selection, for panels with no hash param of their own.
+  const [localPanel, setLocalPanel] = useState<string | null>(null);
+
+  /**
+   * The one open panel. A panel with a `param` is open when that param is set,
+   * so a shared URL reopens it; everything else is local UI state.
+   */
+  const activeKey = useMemo(() => {
     void hashVersion;
-    return toolbar.map((item): HeaderAction => {
-      if (item.kind === "hashParamToggle") {
-        const on = getHashParamValueBooleanFromWindow(item.param) ?? false;
-        return {
-          key: `toolbar:${item.param}`,
-          label: item.label,
-          icon: item.icon,
-          active: on,
-          // Unset rather than write `false`: an absent param keeps shared URLs
-          // free of defaults.
-          onClick: () =>
-            setHashParamValueBooleanInWindow(
-              item.param,
-              on ? undefined : true,
-            ),
-        };
+    const fromHash = allPanels.find((p) =>
+      p.param && getHashParamValueBooleanFromWindow(p.param)
+    );
+    return fromHash?.key ?? localPanel;
+  }, [allPanels, localPanel, hashVersion]);
+
+  /** Selecting a panel closes whichever was open: one slot, tab semantics. */
+  const selectPanel = useCallback((key: string | null) => {
+    for (const panel of allPanels) {
+      if (!panel.param) continue;
+      const shouldBeOpen = panel.key === key;
+      const isOpen = getHashParamValueBooleanFromWindow(panel.param) ?? false;
+      if (shouldBeOpen !== isOpen) {
+        // Unset rather than write `false`: an absent param keeps shared URLs
+        // free of defaults.
+        setHashParamValueBooleanInWindow(
+          panel.param,
+          shouldBeOpen ? true : undefined,
+        );
       }
-      return {
+    }
+    setLocalPanel(
+      key && !allPanels.find((p) => p.key === key)?.param ? key : null,
+    );
+  }, [allPanels]);
+
+  /** Links declared in a frame's config. Not selectable — they just act. */
+  const toolbarActions = useMemo<HeaderAction[]>(
+    () =>
+      toolbar.map((item): HeaderAction => ({
         key: `toolbar:${item.href}`,
         label: item.label,
         icon: item.icon,
         onClick: () =>
           globalThis.open?.(item.href, "_blank", "noopener,noreferrer"),
-      };
-    });
-  }, [toolbar, hashVersion]);
+      })),
+    [toolbar],
+  );
 
   const actions = useMemo<HeaderAction[]>(() => [
-    ...toolbarActions,
     ...allPanels.map((panel): HeaderAction => ({
       key: panel.key,
       label: panel.label,
       icon: panel.icon,
-      onClick: () =>
-        setShownPanel((current) => current === panel.key ? null : panel.key),
+      selectable: true,
+      onClick: () => selectPanel(activeKey === panel.key ? null : panel.key),
     })),
+    ...toolbarActions,
     {
       key: "copy-url",
       label: "copy URL to clipboard",
       icon: "copy",
       onClick: copyUrl,
     },
-  ], [toolbarActions, allPanels, copyUrl]);
+  ], [allPanels, toolbarActions, activeKey, selectPanel, copyUrl]);
 
-  // The main view is mounted in the same place in every branch below, so that
-  // opening a panel or hiding the chrome never tears it down: a frame's main
-  // view can hold an editor buffer, a 3D viewer or a Python runtime.
-  const main = <div class="relative min-h-0 min-w-0 flex-1">{children}</div>;
-
-  const toastNode = toast
-    ? (
-      <div class="plate fixed bottom-4 left-1/2 z-50 -translate-x-1/2 px-3 py-2 text-sm text-ink shadow-lg">
-        {toast}
-      </div>
-    )
-    : null;
-
-  // Before mount, and when the embedding metapage asked for no chrome at all.
-  if (!mounted || mode === "disabled") {
-    return <div class="flex h-dvh w-full flex-col bg-paper">{main}</div>;
-  }
-
-  if (menuHidden) {
-    return (
-      <div class="relative flex h-dvh w-full flex-col bg-paper">
-        <button
-          type="button"
-          onClick={() => setMenuHidden(false)}
-          aria-label="Show menu"
-          title="Show menu"
-          // "invisible" keeps the button clickable but transparent until
-          // hovered: that is deliberate in the existing metaframes.
-          class={`absolute right-1 top-1 z-10 flex items-center justify-center rounded-control bg-paper/80 p-1.5 text-ink-2 transition-opacity duration-150 hover:bg-surface-2 hover:text-ink ${
-            mode === "invisible" ? "opacity-0 hover:opacity-100" : ""
-          }`}
-        >
-          <IconList size="20px" />
-        </button>
-        {main}
-        {toastNode}
-      </div>
-    );
-  }
-
-  const panel = allPanels.find((p) => p.key === shownPanel);
+  const chromeAllowed = mounted && mode !== "disabled";
+  const chromeVisible = chromeAllowed && !menuHidden;
+  const panel = chromeVisible
+    ? allPanels.find((p) => p.key === activeKey)
+    : undefined;
 
   return (
+    // ONE tree. `children` below never changes position, so the frame's
+    // renderer is never remounted by anything the chrome does.
     <div class="flex h-dvh w-full flex-col bg-paper">
-      <MainHeader
-        wordmark={wordmark}
-        title={title}
-        actions={actions}
-        shownPanel={shownPanel}
-        onWordmarkClick={() => setShownPanel(null)}
-        onClose={() => setMenuHidden(true)}
-      />
-      <div class="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden">
-        {main}
+      {chromeVisible && (
+        <MainHeader
+          wordmark={wordmark}
+          title={title}
+          actions={actions}
+          shownPanel={activeKey}
+          onWordmarkClick={() => selectPanel(null)}
+          onClose={() => setMenuHidden(true)}
+        />
+      )}
+
+      <div class="relative flex min-h-0 w-full flex-1 overflow-hidden">
+        <div class="relative min-h-0 min-w-0 flex-1">{children}</div>
+
         {panel && (
-          // Overlays the main view rather than replacing it, so the main view
-          // keeps its state while a panel is open.
-          <div class="absolute inset-0 z-[2] flex flex-col border-l border-line bg-surface-2">
+          <aside
+            // max-width, because a panel's width is configuration (the
+            // markdown editor's `editorWidth` defaults to 80ch) and must not
+            // be able to crowd the renderer out of a narrow frame.
+            class="flex min-h-0 shrink-0 flex-col border-l border-line bg-surface-2 max-w-[70%]"
+            style={{ width: panel.width ?? "50%" }}
+          >
             <PanelHeader
               title={panel.label}
-              onClose={() => setShownPanel(null)}
+              onClose={() => selectPanel(null)}
             />
             <div class="min-h-0 flex-1 overflow-y-auto">{panel.content}</div>
-          </div>
+          </aside>
+        )}
+
+        {chromeAllowed && menuHidden && (
+          <button
+            type="button"
+            onClick={() => setMenuHidden(false)}
+            aria-label="Show menu"
+            title="Show menu"
+            // Transparent but clickable by default: the chrome should not
+            // intrude on an embedded frame, while staying reachable.
+            // `hm=visible` opts into drawing it always.
+            class={`absolute right-1 top-1 z-10 flex items-center justify-center rounded-control bg-paper/80 p-1.5 text-ink-2 transition-opacity duration-150 hover:bg-surface-2 hover:text-ink focus-visible:opacity-100 ${
+              mode === "visible" ? "" : "opacity-0 hover:opacity-100"
+            }`}
+          >
+            <IconList size="20px" />
+          </button>
         )}
       </div>
-      {toastNode}
+
+      {toast && (
+        <div class="plate fixed bottom-4 left-1/2 z-50 -translate-x-1/2 px-3 py-2 text-sm text-ink shadow-lg">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

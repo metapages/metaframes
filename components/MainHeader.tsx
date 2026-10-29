@@ -20,8 +20,12 @@ export interface HeaderAction {
   label: string;
   icon: IconName;
   onClick: () => void;
-  /** Rendered as pressed (a toggle that is currently on). */
-  active?: boolean;
+  /**
+   * This action opens the shared panel, so it can render as the selected one.
+   * Plain actions (copy, links) are never drawn as selected — they do a thing
+   * and finish, rather than leaving the header in a state.
+   */
+  selectable?: boolean;
 }
 
 const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
@@ -74,7 +78,7 @@ export function MainHeader(
 
   const iconButton = (action: HeaderAction) => {
     const Icon = ICONS[action.icon];
-    const selected = action.active || action.key === shownPanel;
+    const selected = !!action.selectable && action.key === shownPanel;
     return (
       <button
         key={action.key}
@@ -82,7 +86,7 @@ export function MainHeader(
         onClick={action.onClick}
         title={capitalize(action.label)}
         aria-label={capitalize(action.label)}
-        aria-pressed={selected}
+        aria-pressed={action.selectable ? selected : undefined}
         class={`flex h-10 w-7 shrink-0 items-center justify-center text-ink-2 hover:text-ink ${
           selected ? "text-ink" : ""
         }`}
@@ -100,12 +104,16 @@ export function MainHeader(
 
   const menuItem = (action: HeaderAction) => {
     const Icon = ICONS[action.icon];
+    const selected = !!action.selectable && action.key === shownPanel;
     return (
       <button
         key={action.key}
         type="button"
         onClick={action.onClick}
-        class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-surface-2"
+        aria-pressed={action.selectable ? selected : undefined}
+        class={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface-2 ${
+          selected ? "bg-surface-2 text-ink" : "text-ink-2"
+        }`}
       >
         <Icon size="18px" />
         <span>{capitalize(action.label)}</span>

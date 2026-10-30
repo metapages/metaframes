@@ -56,6 +56,20 @@ export interface FrameShellProps {
   toolbar?: ToolbarItem[];
   /** Panels the frame supplies, shown in the same slot as settings and help. */
   panels?: FramePanel[];
+  /**
+   * Header buttons the frame supplies — a Run button, a reset. For actions
+   * that need a handler, which `toolbar` (pure data in config.ts) cannot
+   * express. They act and finish; they never render as selected.
+   */
+  actions?: FrameAction[];
+}
+
+/** A header button a frame wires up itself. */
+export interface FrameAction {
+  key: string;
+  label: string;
+  icon: IconName;
+  onClick: () => void;
 }
 
 /**
@@ -101,6 +115,7 @@ export function FrameShell(
     optionsHashKey = "options",
     toolbar = [],
     panels = [],
+    actions: frameActions = [],
   }: FrameShellProps,
 ): JSX.Element {
   const [mode] = useHashParam("hm");
@@ -180,6 +195,7 @@ export function FrameShell(
   );
 
   const actions = useMemo<HeaderAction[]>(() => [
+    ...frameActions,
     ...allPanels.map((panel): HeaderAction => ({
       key: panel.key,
       label: panel.label,
@@ -194,7 +210,7 @@ export function FrameShell(
       icon: "copy",
       onClick: copyUrl,
     },
-  ], [allPanels, toolbarActions, activeKey, copyUrl]);
+  ], [frameActions, allPanels, toolbarActions, activeKey, copyUrl]);
 
   const chromeAllowed = mounted && mode !== "disabled";
   const chromeVisible = chromeAllowed && edit;

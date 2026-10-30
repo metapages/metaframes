@@ -10,6 +10,7 @@ import type { Extension } from "@codemirror/state";
  */
 const LANGUAGES: Record<string, () => Promise<Extension>> = {
   markdown: () => import("@codemirror/lang-markdown").then((m) => m.markdown()),
+  python: () => import("@codemirror/lang-python").then((m) => m.python()),
 };
 
 /** A key of LANGUAGES. An unknown language yields a plain-text editor. */

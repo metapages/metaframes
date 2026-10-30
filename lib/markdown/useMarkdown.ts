@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "preact/hooks";
+import { useCallback, useEffect, useRef } from "preact/hooks";
 import {
   setHashParamInWindow,
   stringFromBase64String,
 } from "@metapages/hash-query";
 import { useHashParam, useHashParamBase64 } from "../hash/useHashParam.ts";
+import { useHashParamDocument } from "../hash/useHashParamDocument.ts";
 import { useMetaframe } from "../metaframe/useMetaframe.ts";
 
 // Hash param keys, unchanged from the deployed markdown metaframe: `base64`
@@ -45,61 +46,32 @@ function absolutizeImages(markdown: string, docUrl: string): string {
  * `mermaid-base64`), a `url` hash param fetched over CORS, or the `md` /
  * legacy `base64` hash param.
  */
-/**
- * How long after the last keystroke the document is written to the hash.
- *
- * The hash is the shareable state, not a keystroke log: writing it per
- * keystroke rewrites the URL and wakes every subscriber on the page. The
- * preview does not wait for it — local state drives rendering immediately —
- * so this delay is invisible while typing. framejs.io debounces its code
- * commits for the same reason.
- */
-const HASH_COMMIT_DEBOUNCE_MS = 500;
-
 export function useMarkdown(): [string, (markdown: string) => void] {
   const metaframe = useMetaframe();
   const [url] = useHashParam(HashKeyUrl);
-  const [fromHash, setFromHash] = useHashParamBase64(HashKeyMarkdown);
+  // The live document: renders immediately, reaches the hash once typing
+  // pauses, and ignores its own write coming back. Shared with every other
+  // frame that has an editor.
+  const doc = useHashParamDocument(HashKeyMarkdown);
   const [fromHashLegacy] = useHashParamBase64(HashKeyMarkdownLegacy);
 
-  const [markdown, setMarkdown] = useState("");
+  const markdown = doc.value;
   const fromUrlRef = useRef<string | undefined>(undefined);
   const previousInputRef = useRef<string | undefined>(undefined);
-  /**
-   * Text this page authored and has not yet seen echoed back out of the hash.
-   * Without it the debounced write returns as an "external" change and fights
-   * whatever has been typed since.
-   */
-  const localRef = useRef<string | null>(null);
-  const commitTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
 
+  /** A metaframe input arrived: show it, but do not write it back. */
   const setIfNew = useCallback((next: string) => {
     if (previousInputRef.current === next) return;
     previousInputRef.current = next;
-    localRef.current = null;
-    setMarkdown(next);
-  }, []);
+    doc.replace(next);
+  }, [doc.replace]);
 
-  /**
-   * Persist edited markdown. The preview updates on this keystroke; the hash
-   * catches up once typing pauses. Writing content invalidates any `url`.
-   */
+  /** Edited here. Writing content invalidates any `url` param. */
   const setMarkdownAndPersist = useCallback((next: string) => {
     if (fromUrlRef.current === next) return;
-    localRef.current = next;
-    setMarkdown(next);
-
-    clearTimeout(commitTimer.current);
-    commitTimer.current = setTimeout(() => {
-      setFromHash(next === "" ? undefined : next);
-      setHashParamInWindow(HashKeyUrl, undefined);
-    }, HASH_COMMIT_DEBOUNCE_MS);
-  }, [setFromHash]);
-
-  // Do not strand an unwritten edit if the editor closes mid-debounce.
-  useEffect(() => () => clearTimeout(commitTimer.current), []);
+    doc.edit(next);
+    setHashParamInWindow(HashKeyUrl, undefined);
+  }, [doc.edit]);
 
   // Metaframe inputs.
   useEffect(() => {
@@ -157,7 +129,7 @@ export function useMarkdown(): [string, (markdown: string) => void] {
         const res = await fetch(url, { mode: "cors", redirect: "follow" });
         if (!res.ok) {
           if (!cancelled) {
-            setMarkdown(
+            doc.replace(
               `# Error getting URL: ${url}\n\n - status: ${res.status}\n - statusText: ${res.statusText}`,
             );
           }
@@ -166,9 +138,9 @@ export function useMarkdown(): [string, (markdown: string) => void] {
         const payload = absolutizeImages(await res.text(), url);
         if (cancelled) return;
         fromUrlRef.current = payload;
-        setMarkdown(payload);
+        doc.replace(payload);
       } catch (err) {
-        if (!cancelled) setMarkdown(`# Error getting URL: ${url}\n\n${err}`);
+        if (!cancelled) doc.replace(`# Error getting URL: ${url}\n\n${err}`);
       }
     })();
 
@@ -177,19 +149,16 @@ export function useMarkdown(): [string, (markdown: string) => void] {
     };
   }, [url]);
 
-  // `md` / legacy `base64` hash param.
+  // Legacy `base64` key, from before the param was renamed to `md`. Only used
+  // when `md` itself is empty, and content starting with `%` is from a still
+  // older encoding — a content shim, not hash parsing.
   useEffect(() => {
-    let md = fromHash || fromHashLegacy || "";
-    // The debounced write coming back to us. Ignore it: acting on it would
-    // replace whatever has been typed in the meantime.
-    if (md === localRef.current) return;
-    localRef.current = null;
-    // Older versions URI-encoded the content inside the hash param; anything
-    // starting with `%` is from that era. This is a content-encoding shim, not
-    // hash parsing — the value itself already came from the module's getter.
-    if (md.startsWith("%")) md = decodeURIComponent(md);
-    setMarkdown(md);
-  }, [fromHash, fromHashLegacy]);
+    if (doc.value || !fromHashLegacy) return;
+    const md = fromHashLegacy.startsWith("%")
+      ? decodeURIComponent(fromHashLegacy)
+      : fromHashLegacy;
+    doc.replace(md);
+  }, [fromHashLegacy, doc.value, doc.replace]);
 
   return [markdown, setMarkdownAndPersist];
 }

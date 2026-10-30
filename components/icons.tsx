@@ -113,6 +113,20 @@ export const IconFilePlus = (p: IconProps) => (
   />
 );
 
+export const IconPlay = (p: IconProps) => (
+  <Glyph
+    {...p}
+    d="M232.4,114.49,88.32,26.35a16,16,0,0,0-16.2-.3A15.86,15.86,0,0,0,64,39.87V216.13A15.94,15.94,0,0,0,80,232a16.07,16.07,0,0,0,8.36-2.35L232.4,141.51a15.81,15.81,0,0,0,0-27ZM80,215.94V40l143.83,88Z"
+  />
+);
+
+export const IconCube = (p: IconProps) => (
+  <Glyph
+    {...p}
+    d="M223.68,66.15,135.68,18h0a15.88,15.88,0,0,0-15.36,0l-88,48.17a16,16,0,0,0-8.32,14v95.64a16,16,0,0,0,8.32,14l88,48.17a15.88,15.88,0,0,0,15.36,0l88-48.17a16,16,0,0,0,8.32-14V80.18A16,16,0,0,0,223.68,66.15ZM128,32h0l80.34,44L128,120,47.66,76ZM40,90l80,43.78v85.79L40,175.82Zm96,129.57V133.82L216,90v85.78Z"
+  />
+);
+
 /**
  * Icons addressable by name, so a frame can pick one from `frame.ts`
  * configuration without importing a component.
@@ -129,6 +143,8 @@ export const ICONS = {
   eye: IconEye,
   sliders: IconSliders,
   "magic-wand": IconMagicWand,
+  play: IconPlay,
+  cube: IconCube,
   "file-plus": IconFilePlus,
 } as const;
 

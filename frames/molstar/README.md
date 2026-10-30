@@ -35,12 +35,17 @@ Changes you make inside Mol* are written back to the URL, in a `view` hash
 param, so the viewer you are looking at is the viewer you share:
 
 - **panel layout** — expanded, controls shown, which regions are open
-- **camera** — position, target, orientation, field of view
-- **renderer settings** — background, lighting, quality and the rest, stored as
-  the difference from the defaults so an untouched setting costs nothing
+- **camera** — where you moved it
+- **renderer settings** — background, lighting, quality and the rest
 
-Nothing is written until you actually change something, so a frame you only
-look at keeps a clean URL.
+**Only what you changed is stored.** The viewer's own defaults are never
+written, and each setting is recorded on its own: turning on the controls
+panel adds `{"layout":{"showControls":true}}` and nothing else. Change it back
+and it drops out again; put everything back and the `view` param disappears
+entirely. A frame you only look at keeps a clean URL.
+
+That keeps shared links small — a single changed setting costs about 70
+characters, and a changed layout, background and camera together about 300.
 
 **What is not saved:** the structure tree — representations, selections,
 components added through Mol*'s own controls. Mol*'s full state snapshot is

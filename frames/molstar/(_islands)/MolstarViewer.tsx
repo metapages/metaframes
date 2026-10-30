@@ -106,12 +106,12 @@ interface ViewState {
 const VIEW_COMMIT_DEBOUNCE_MS = 800;
 
 /**
- * How often to check the viewer for changes it did not announce. Mol* has no
+ * How often the viewer is compared against what was last written. Mol* has no
  * single observable covering its UI state — `layout.events.updated` stays
- * silent through `layout.setProps` — so the view is compared on a timer as
- * well as on its events.
+ * silent through `layout.setProps` — so this is the mechanism, not a backstop.
+ * It is also how startup detects that the viewer has stopped settling.
  */
-const VIEW_POLL_MS = 1500;
+const VIEW_POLL_MS = 400;
 
 /** Only what differs from `base`, recursively. Undefined when nothing does. */
 function diffFrom(current: Any, base: Any): Any {
@@ -199,43 +199,38 @@ async function resolveSource(
 function syncView(
   viewer: Any,
   viewRef: { current: ViewState },
-  setViewRef: { current: (v: ViewState) => void },
+  setViewRef: { current: (v: ViewState | undefined) => void },
 ): () => void {
   const plugin = viewer.plugin;
   const canvas3d = plugin?.canvas3d;
   if (!plugin || !canvas3d) return () => {};
 
-  // The renderer's settings as created, so only deliberate changes are stored.
-  const defaultCanvas3dProps = JSON.parse(JSON.stringify(canvas3d.props));
+  const clone = (value: Any) => JSON.parse(JSON.stringify(value));
+  const readAll = () => ({
+    layout: clone(plugin.layout.state),
+    canvas3d: clone(canvas3d.props),
+    camera: clone(canvas3d.camera.getSnapshot()),
+  });
 
-  // Applying the saved view moves the camera and the layout, which would
-  // otherwise read as user changes and be written straight back.
-  let applying = true;
-  const saved = viewRef.current ?? {};
-  try {
-    if (saved.layout) plugin.layout.setProps(saved.layout);
-    if (saved.canvas3d) canvas3d.setProps(saved.canvas3d);
-    if (saved.camera) canvas3d.camera.setState(saved.camera);
-  } catch (err) {
-    console.error("Could not restore the saved Mol* view", err);
-  }
-
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  /**
-   * The view as it stands with nothing touched. Compared against, so a frame
-   * that is merely looked at keeps its clean URL — only a deliberate change
-   * adds `view` to it.
-   */
+  let disposed = false;
+  let defaults: ReturnType<typeof readAll> | undefined;
   let lastWritten: string | undefined;
+  let commit: ReturnType<typeof setTimeout> | undefined;
 
+  /** Only what differs from the defaults; empty for an untouched viewer. */
   const currentView = (): ViewState | undefined => {
+    if (!defaults) return undefined;
     try {
-      const next: ViewState = {
-        layout: JSON.parse(JSON.stringify(plugin.layout.state)),
-        camera: JSON.parse(JSON.stringify(canvas3d.camera.getSnapshot())),
-      };
-      const changed = diffFrom(canvas3d.props, defaultCanvas3dProps);
-      if (changed) next.canvas3d = changed;
+      const now = readAll();
+      const next: ViewState = {};
+      const layout = diffFrom(now.layout, defaults.layout);
+      if (layout) next.layout = layout;
+      const props = diffFrom(now.canvas3d, defaults.canvas3d);
+      if (props) next.canvas3d = props;
+      // `camera.setState` merges, so a partial camera restores correctly: an
+      // unchanged target keeps the framing the structure was given.
+      const camera = diffFrom(now.camera, defaults.camera);
+      if (camera) next.camera = camera;
       return next;
     } catch (err) {
       console.error("Could not read the Mol* view", err);
@@ -244,42 +239,91 @@ function syncView(
   };
 
   const persist = () => {
-    if (applying) return;
+    if (phase !== "watching" || disposed) return;
     const next = currentView();
     if (!next) return;
     const serialized = JSON.stringify(next);
     if (serialized === lastWritten) return;
     lastWritten = serialized;
-    setViewRef.current(next);
+    // Back to the defaults: drop the param rather than leave an empty object.
+    setViewRef.current(Object.keys(next).length > 0 ? next : undefined);
   };
 
   const schedule = () => {
-    clearTimeout(timer);
-    timer = setTimeout(persist, VIEW_COMMIT_DEBOUNCE_MS);
+    clearTimeout(commit);
+    commit = setTimeout(persist, VIEW_COMMIT_DEBOUNCE_MS);
   };
 
-  // These are hints that something may have changed, not a complete account
-  // of it: `layout.events.updated` does not fire for `layout.setProps`, so
-  // panel changes would otherwise go unnoticed until the next redraw. The
-  // interval is the backstop — persist() compares before writing, so a viewer
-  // nobody is touching costs one small JSON.stringify per tick and writes
-  // nothing.
+  /**
+   * Startup runs in three phases, driven by the viewer actually being stable
+   * rather than by a guess at how long it takes.
+   *
+   * Loading a structure frames it, which sets the camera and derives values
+   * like the clipping radius and the trackball distances over an unpredictable
+   * number of frames — longer for bigger structures. Read the defaults before
+   * that settles and those derived values look like user choices, so they end
+   * up in every URL; read them after applying a saved view and the restored
+   * values become the defaults and vanish. Waiting for two identical reads in
+   * a row, with Mol* reporting itself idle, avoids both without a race.
+   */
+  let phase: "settling" | "restoring" | "watching" = "settling";
+  let previous: string | undefined;
+
+  const tick = () => {
+    if (disposed) return;
+    if (plugin.behaviors?.state?.isBusy?.value) {
+      previous = undefined; // mid-change; start the stability check again
+      return;
+    }
+    let now: string;
+    try {
+      now = JSON.stringify(readAll());
+    } catch {
+      return;
+    }
+
+    if (phase === "watching") {
+      persist();
+      return;
+    }
+
+    const stable = previous === now;
+    previous = now;
+    if (!stable) return;
+
+    if (phase === "settling") {
+      defaults = JSON.parse(now);
+      const saved = viewRef.current ?? {};
+      try {
+        if (saved.layout) plugin.layout.setProps(saved.layout);
+        if (saved.canvas3d) canvas3d.setProps(saved.canvas3d);
+        if (saved.camera) canvas3d.camera.setState(saved.camera);
+      } catch (err) {
+        console.error("Could not restore the saved Mol* view", err);
+      }
+      phase = "restoring";
+      previous = undefined;
+      return;
+    }
+
+    // Restored and stable again: this is the mark to measure changes from.
+    lastWritten = JSON.stringify(currentView());
+    phase = "watching";
+  };
+
+  const poll = setInterval(tick, VIEW_POLL_MS);
+
+  // Once watching, these make a change show up promptly instead of waiting for
+  // the next tick. `layout.events.updated` does not fire for
+  // `layout.setProps`, which is why the poll above is the one that must work.
   const subs = [
-    canvas3d.didDraw?.subscribe?.(schedule),
+    canvas3d.camera?.stateChanged?.subscribe?.(schedule),
     plugin.layout?.events?.updated?.subscribe?.(schedule),
   ];
-  const poll = setInterval(schedule, VIEW_POLL_MS);
-
-  // Let the restore settle, then take that as the baseline: the camera drifts
-  // slightly while a structure is framed, and none of that is a user decision.
-  const settle = setTimeout(() => {
-    lastWritten = JSON.stringify(currentView());
-    applying = false;
-  }, VIEW_COMMIT_DEBOUNCE_MS);
 
   return () => {
-    clearTimeout(timer);
-    clearTimeout(settle);
+    disposed = true;
+    clearTimeout(commit);
     clearInterval(poll);
     for (const sub of subs) sub?.unsubscribe?.();
   };

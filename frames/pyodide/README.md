@@ -48,6 +48,33 @@ import some_pure_python_package
 Only pure-Python wheels can be installed that way; anything with compiled
 extensions has to be in the Pyodide distribution.
 
+## Plots
+
+matplotlib figures are drawn into the output pane, with its usual toolbar for
+exporting PNG, SVG or PDF:
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+
+x = np.linspace(0, 10, 50)
+plt.plot(x, np.sin(x), marker='o')
+plt.title('sin(x)')
+```
+
+`plt.show()` is optional — any figure still open when the script finishes is
+shown automatically, so notebook-style code works as written. Call `plt.show()`
+yourself if you want a figure displayed partway through.
+
+To send a plot downstream instead of showing it, save it and set an output:
+
+```python
+import io, base64
+buf = io.BytesIO()
+plt.savefig(buf, format='png')
+metaframe.setOutput('image', 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode())
+```
+
 ## Configuration + Inputs/Outputs
 
 There are two (metaframe) modes (set in ⚙️ Options):

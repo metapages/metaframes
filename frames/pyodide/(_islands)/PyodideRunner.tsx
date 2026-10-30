@@ -27,6 +27,25 @@ type Any = any;
 const RUN_DEBOUNCE_MS = 500;
 
 /**
+ * Display any figure the script left open.
+ *
+ * Pyodide gives matplotlib the `matplotlib_pyodide.wasm_backend`, which only
+ * draws on `plt.show()`. Notebook-style code usually omits that — it ends on
+ * `plt.title(...)` and expects a plot — so this runs afterwards and shows
+ * whatever is still open. Written as a function that deletes itself, to leave
+ * nothing behind in the script's globals.
+ */
+const SHOW_OPEN_FIGURES = `
+def _mf_show_open_figures():
+    import sys
+    plt = sys.modules.get("matplotlib.pyplot")
+    if plt is not None and plt.get_fignums():
+        plt.show()
+_mf_show_open_figures()
+del _mf_show_open_figures
+`;
+
+/**
  * Write metaframe inputs into the Pyodide filesystem at /inputs/<key>, with
  * the original runtime's type handling: typed arrays raw, objects as JSON.
  */
@@ -114,10 +133,26 @@ export function PyodideRunner({ help }: { help: HelpConfig }) {
       // are on PyPI but not in the distribution still need an explicit
       // `await micropip.install(...)`.
       await pyodide.loadPackagesFromImports(py, {
-        messageCallback: logStdout,
+        // "x already loaded from default channel" repeats on every run once a
+        // package is resident; only genuine progress is worth the pane.
+        messageCallback: (m: string) =>
+          m.includes("already loaded") ? undefined : logStdout(m),
         errorCallback: logStderr,
       });
+
+      // Where matplotlib puts its figures. Without this the backend appends
+      // them to document.body, outside the frame's output pane, so a plot
+      // renders but is never seen. Set per run: the pane is a fresh node if
+      // the renderer was ever rebuilt.
+      (document as Any).pyodideMplTarget = outputRef.current;
+
       await pyodide.runPythonAsync(py);
+      try {
+        await pyodide.runPythonAsync(SHOW_OPEN_FIGURES);
+      } catch (err) {
+        // Showing a figure must never fail the script that drew it.
+        console.error("Error displaying matplotlib figures", err);
+      }
       if (!optionsRef.current?.r) return;
       const FS = pyodide.FS;
       const files = FS.readdir("/outputs").filter((f: string) =>

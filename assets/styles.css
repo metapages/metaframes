@@ -440,6 +440,17 @@ body {
   max-width: 100%;
 }
 
+/* Figures a script draws into the output pane (matplotlib via
+   matplotlib_pyodide) are raw DOM, so they need sizing here. */
+#root canvas,
+#root img {
+  max-width: 100%;
+  height: auto;
+}
+#root > div[id^="matplotlib_"] {
+  margin: 0.5rem 0;
+}
+
 /* Pyodide-style stdout / stderr blocks, appended as raw DOM by frames that
    stream output. */
 .pre-stdout,

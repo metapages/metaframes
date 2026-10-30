@@ -106,6 +106,17 @@ export function PyodideRunner({ help }: { help: HelpConfig }) {
     const py = codeRef.current;
     if (!py) return;
     try {
+      // Install whatever the script imports before running it. Pyodide ships
+      // numpy, pandas, matplotlib and the rest, but does not load any of them
+      // until asked — without this, `import numpy as np` fails with a
+      // ModuleNotFoundError telling the user to install it by hand. Unknown
+      // imports are skipped here and fail at runtime as usual; packages that
+      // are on PyPI but not in the distribution still need an explicit
+      // `await micropip.install(...)`.
+      await pyodide.loadPackagesFromImports(py, {
+        messageCallback: logStdout,
+        errorCallback: logStderr,
+      });
       await pyodide.runPythonAsync(py);
       if (!optionsRef.current?.r) return;
       const FS = pyodide.FS;
@@ -119,7 +130,7 @@ export function PyodideRunner({ help }: { help: HelpConfig }) {
     } catch (err) {
       logStderr(`${err}`);
     }
-  }, [logStderr]);
+  }, [logStdout, logStderr]);
 
   const runRef = useRef(run);
   runRef.current = run;

@@ -21,6 +21,33 @@ Examples:
  - All code and configuration is stored in the URL
    - shareable and durable
 
+
+## Packages
+
+Imports are installed automatically before the script runs, so this just works:
+
+```python
+import numpy as np
+print(np.arange(5).sum())
+```
+
+That covers everything in the
+[Pyodide distribution](https://pyodide.org/en/stable/usage/packages-in-pyodide.html)
+— numpy, pandas, matplotlib, scipy, scikit-learn and the rest. The first run
+downloads them, and the output pane shows the progress.
+
+A package that is on PyPI but not in the distribution has to be installed
+explicitly, with `micropip` (already available, no import of it needed):
+
+```python
+import micropip
+await micropip.install("some-pure-python-package")
+import some_pure_python_package
+```
+
+Only pure-Python wheels can be installed that way; anything with compiled
+extensions has to be in the Pyodide distribution.
+
 ## Configuration + Inputs/Outputs
 
 There are two (metaframe) modes (set in ⚙️ Options):

@@ -125,6 +125,58 @@ links) never render as selected.
 | `visible` | the open-menu button is always drawn |
 | `disabled` | no menu and no button, ever |
 
+## Hash params
+
+The URL hash is a frame's state, and [`@metapages/hash-query`](https://www.npmjs.com/package/@metapages/hash-query)
+owns its wire format. **Never hand-roll any part of it** — no `atob`/`btoa`, no
+`location.hash` slicing, no string-concatenated `#?a=1&b=2`. Use the Preact
+wrappers in [`lib/hash/useHashParam.ts`](./lib/hash/useHashParam.ts), or the
+module's own getters, setters and `addEventListenerHashParam*` subscriptions
+outside a component. Full rules, including the compatibility constraints that
+keep published metapage URLs working, are in the `hash-params` skill
+([`.claude/skills/hash-params/SKILL.md`](./.claude/skills/hash-params/SKILL.md)).
+
+A frame with an editor should not hand-roll the editing loop either. Use
+[`lib/hash/useHashParamDocument.ts`](./lib/hash/useHashParamDocument.ts), which
+renders from local state immediately, debounces the hash write, and ignores
+that write coming back — getting any of those wrong is invisible until someone
+says typing feels broken. `components/CodeMirror.tsx` guards the other
+direction, refusing to let the echo of its own edit overwrite the buffer.
+
+## Weight
+
+The page is small and renders content; anything heavier is fetched when it is
+actually needed. Measured on the production build:
+
+| frame | first load | on demand |
+|---|---|---|
+| `/echo` | 208 KB | — |
+| `/molstar` | 211 KB | ~5 MB Mol* when a structure arrives |
+| `/pyodide` | 214 KB | the Python runtime when it starts |
+| `/markdown` | 347 KB | ~610 KB editor when the menu opens |
+
+About 210 KB of that is the floor every frame pays: the client entry, the
+shared shell, and `@metapages/metapage`.
+
+The rule for a new frame: **import a heavy dependency dynamically, inside the
+component that needs it.** Vite then splits it into its own chunk and the
+browser fetches it on mount, not on load.
+[`components/CodeMirror.tsx`](./components/CodeMirror.tsx) is the worked
+example — every CodeMirror import is dynamic and only the types are imported
+statically, so a markdown frame opened read-only ships none of the editor.
+
+Some libraries cannot be bundled at all. Mol*'s module entry
+(`molstar/lib/apps/viewer/app.js`) imports `node:crypto`, `node:fs` and
+`node:path`, so it fails at load in a browser; `build/viewer/molstar.js` is a
+self-contained browser build instead, which is what Mol*'s own `embedded.html`
+uses. Pyodide only ships a classic script. For those, load the browser build at
+runtime with [`lib/cdn.ts`](./lib/cdn.ts) — which keeps them out of the first
+load for free.
+
+What legitimately belongs in the initial chunk is the frame's actual content
+renderer (markdown-it for the markdown frame) and `@metapages/metapage`, which
+has to connect to the parent metapage promptly to receive inputs.
+
 ## Commands
 
 ```sh
@@ -169,6 +221,8 @@ frame the way it is actually used needs TLS locally.
 |---|---|---|
 | `echo` | `metaframe-echo` | ✅ |
 | `markdown` | `metaframe-markdown`, `metaframe-markdown-v2` | ✅ serves `markdown` + the legacy `markdownv2` alias; renders every frame's help |
+| `pyodide` | `metaframe-pyodide`, `metaframe-py-NEW` | ✅ serves `py` + the legacy `pyiodide` alias; Python runtime from a CDN |
+| `molstar` | `metaframe-molstar` | ✅ Mol* browser build from a CDN; PDB id, `.pdb`, `.cif`, gromacs trajectory |
 
 The rest are still deployed from their own repos. The UI of each is rewritten to
 Preact + Tailwind on migration — the originals are React 18 + Chakra UI v2, and

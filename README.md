@@ -63,7 +63,7 @@ The point of the monorepo. Most of a metaframe used to be these:
 | | |
 |---|---|
 | [`components/FrameShell.tsx`](./components/FrameShell.tsx) | Main / Options / Help tabs, the `hm` chrome modes, copy-URL button. Tabs mount on first use and stay mounted. |
-| [`components/OptionsPanel.tsx`](./components/OptionsPanel.tsx) | the Options tab, driven by a frame's `FrameOption[]` and persisted to one hash param |
+| [`components/OptionsPanel.tsx`](./components/OptionsPanel.tsx) | the settings panel, generated from a frame's `FrameOption[]`. Fields share one `options` hash param; a field marked `hashParam` gets its own top-level param instead, for values that are part of what the frame *is* (molstar's `pdbId`) rather than how it looks |
 | [`lib/hash/useHashParam.ts`](./lib/hash/useHashParam.ts) | Preact hooks over `@metapages/hash-query`, wire-compatible with every published URL |
 | [`lib/metaframe/useMetaframe.ts`](./lib/metaframe/useMetaframe.ts) | the metaframe postMessage protocol as hooks: inputs, outputs |
 | [`components/CodeMirror.tsx`](./components/CodeMirror.tsx) | editor, grammars loaded on demand |

@@ -1,6 +1,10 @@
-import { useCallback, useMemo, useState } from "preact/hooks";
+import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import type { FrameOption } from "../lib/registry.ts";
 import { useHashParamJson } from "../lib/hash/useHashParam.ts";
+import {
+  type HashParamField,
+  useHashParamSet,
+} from "../lib/hash/useHashParams.ts";
 
 export type OptionValues = Record<
   string,
@@ -62,6 +66,11 @@ function coerce(
  * Edits stay local until applied. A form that rewrote the URL on every
  * keystroke would make the hash — which is the frame's shareable state —
  * unusable as a history.
+ *
+ * Most fields travel together inside one JSON hash param. A field marked
+ * `hashParam` gets its own top-level param instead, for values that are part
+ * of what the frame *is* — molstar's `pdbId` sits in the URL beside markdown's
+ * `md`, so it reads and shares like the subject it is.
  */
 export function OptionsPanel(
   { options, hashKey = "options" }: {
@@ -79,13 +88,51 @@ export function OptionsPanel(
     [options],
   );
 
-  const [stored, setStored] = useHashParamJson<OptionValues>(hashKey, defaults);
-  const [draft, setDraft] = useState<OptionValues>(stored ?? {});
+  const all = useMemo(() => flatten(options), [options]);
+
+  /** Fields with their own top-level hash param, and the rest. */
+  const ownParams = useMemo<HashParamField[]>(
+    () =>
+      all.filter((o) => o.hashParam).map((o) => ({
+        name: o.name,
+        kind: o.type === "boolean"
+          ? "boolean" as const
+          : o.type === "number"
+          ? "number" as const
+          : "string" as const,
+      })),
+    [all],
+  );
+  const blobDefaults = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(defaults).filter(([name]) =>
+          !all.find((o) => o.name === name)?.hashParam
+        ),
+      ) as OptionValues,
+    [defaults, all],
+  );
+
+  const [stored, setStored] = useHashParamJson<OptionValues>(
+    hashKey,
+    blobDefaults,
+  );
+  const [ownValues, setOwnValues] = useHashParamSet(ownParams);
+  const [draft, setDraft] = useState<OptionValues>({
+    ...stored,
+    ...ownValues,
+  });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [dirty, setDirty] = useState(false);
 
   const visible = useMemo(() => expand(options, draft), [options, draft]);
-  const all = useMemo(() => flatten(options), [options]);
+
+  // A standalone param can change from outside the form (the URL, another
+  // frame). Reflect that, unless the user has unapplied edits to lose.
+  useEffect(() => {
+    if (dirty) return;
+    setDraft((previous) => ({ ...previous, ...ownValues }));
+  }, [ownValues, dirty]);
 
   const onChange = useCallback((name: string, raw: string | boolean) => {
     const option = all.find((o) => o.name === name);
@@ -108,20 +155,34 @@ export function OptionsPanel(
     setErrors(found);
     if (Object.keys(found).length > 0) return;
 
-    const next: OptionValues = {};
+    const blob: OptionValues = {};
+    const own: OptionValues = {};
     for (const [key, value] of Object.entries(draft)) {
+      const option = all.find((o) => o.name === key);
+      if (option?.hashParam) {
+        // Kept even when empty: an empty value means "remove this param".
+        own[key] = value === undefined || value === ""
+          ? undefined
+          : coerce(option, value);
+        continue;
+      }
       if (value === undefined) continue;
-      next[key] = coerce(all.find((o) => o.name === key), value);
+      blob[key] = coerce(option, value);
     }
-    setStored(next);
+    setStored(blob);
+    if (ownParams.length > 0) setOwnValues(own);
     setDirty(false);
-  }, [draft, all, setStored]);
+  }, [draft, all, ownParams, setStored, setOwnValues]);
 
   const reset = useCallback(() => {
-    setDraft(defaults);
+    // Standalone params with no default are cleared rather than left behind.
+    setDraft({
+      ...Object.fromEntries(ownParams.map((f) => [f.name, undefined])),
+      ...defaults,
+    });
     setErrors({});
     setDirty(true);
-  }, [defaults]);
+  }, [defaults, ownParams]);
 
   return (
     <div class="flex h-full flex-col">

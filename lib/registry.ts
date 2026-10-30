@@ -38,6 +38,16 @@ export interface FrameOption {
   validator?: (value: string | boolean | number) => string | undefined;
   /** Transform the value before it is persisted. */
   map?: (value: string | boolean | number) => string | boolean | number;
+  /**
+   * Store this field as its own top-level hash param (named `name`) instead of
+   * inside the frame's `options` JSON.
+   *
+   * Use it for values that are part of what the frame *is* rather than how it
+   * looks — molstar's `pdbId` is the structure being viewed, so it belongs in
+   * the URL beside `md` and `py`, not buried in a settings blob. Presentation
+   * settings should stay in `options`, where they travel as one value.
+   */
+  hashParam?: boolean;
 }
 
 /**

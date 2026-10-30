@@ -10,6 +10,24 @@ export const wordmark = "mol*";
  */
 export const options: FrameOption[] = [
   {
+    // The structure being viewed is what the frame *is*, so it lives in its own
+    // hash param (#?pdbId=1cbs) rather than inside the options blob — the same
+    // shape as markdown's `md` and pyodide's `py`. Metaframe inputs still take
+    // priority over it; this is the standalone fallback.
+    name: "pdbId",
+    displayName: "PDB id",
+    type: "string",
+    hashParam: true,
+    validator: (value) => {
+      const id = String(value).trim();
+      if (!id) return undefined; // empty just means "no id"
+      return /^[0-9a-z]{4}$/i.test(id)
+        ? undefined
+        : "A PDB id is 4 characters, e.g. 1cbs";
+    },
+    map: (value) => String(value).trim().toLowerCase(),
+  },
+  {
     name: "layoutShowControls",
     displayName: "Show Mol* controls",
     type: "boolean",

@@ -9,7 +9,14 @@ import type { FrameOption, ToolbarItem } from "../../lib/registry.ts";
 /** Mono wordmark in the header, the way framejs.io shows "js". */
 export const wordmark = "__NAME__";
 
-/** Rendered by the shared Options panel, persisted to the `options` hash param. */
+/**
+ * Rendered by the shared Options panel.
+ *
+ * Fields travel together inside the `options` hash param by default. Mark one
+ * `hashParam: true` to give it its own top-level param instead — for values
+ * that are part of what the frame *is* rather than how it looks, the way
+ * molstar's `pdbId` sits in the URL beside markdown's `md`.
+ */
 export const options: FrameOption[] = [];
 
 /**

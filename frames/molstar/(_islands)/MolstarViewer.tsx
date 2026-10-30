@@ -85,6 +85,55 @@ async function resolveDataref(value: Any): Promise<Any> {
     : await response.text();
 }
 
+/**
+ * What the viewer looks like, as opposed to what it is showing: panel layout,
+ * renderer settings, camera. Kept in its own `view` hash param so changing the
+ * camera never touches the structure or the settings blob.
+ *
+ * Only these three. Mol*'s full `plugin.state.getSnapshot()` is ~15 KB of JSON
+ * for even a small structure — about 37 KB once base64'd into a hash, growing
+ * with the structure — so it cannot live in a URL. Layout is ~170 bytes, the
+ * camera ~300, and renderer settings are stored as a diff from the defaults,
+ * which is usually a few hundred.
+ */
+interface ViewState {
+  layout?: Record<string, unknown>;
+  camera?: Record<string, unknown>;
+  canvas3d?: Record<string, unknown>;
+}
+
+/** How long to wait after the last change before writing the view to the URL. */
+const VIEW_COMMIT_DEBOUNCE_MS = 800;
+
+/**
+ * How often to check the viewer for changes it did not announce. Mol* has no
+ * single observable covering its UI state — `layout.events.updated` stays
+ * silent through `layout.setProps` — so the view is compared on a timer as
+ * well as on its events.
+ */
+const VIEW_POLL_MS = 1500;
+
+/** Only what differs from `base`, recursively. Undefined when nothing does. */
+function diffFrom(current: Any, base: Any): Any {
+  const plain = (v: Any) =>
+    typeof v === "object" && v !== null && !Array.isArray(v);
+  if (!plain(current) || !plain(base)) {
+    return JSON.stringify(current) === JSON.stringify(base)
+      ? undefined
+      : current;
+  }
+  const out: Record<string, unknown> = {};
+  let changed = false;
+  for (const key of Object.keys(current)) {
+    const d = diffFrom(current[key], base[key]);
+    if (d !== undefined) {
+      out[key] = d;
+      changed = true;
+    }
+  }
+  return changed ? out : undefined;
+}
+
 /** What to show. One shape per way a structure can arrive. */
 type Source =
   | { kind: "pdb-id"; id: string }
@@ -139,6 +188,103 @@ async function resolveSource(
   return undefined;
 }
 
+/**
+ * Restore the saved view onto a freshly built viewer, then keep the URL in step
+ * with what the user does to it. Returns an unsubscribe.
+ *
+ * Mol* exposes everything needed directly on the plugin — `layout.setProps`,
+ * `canvas3d.setProps`, `camera.setState`, and observables for layout and draw
+ * — so no plugin extension or fork is required.
+ */
+function syncView(
+  viewer: Any,
+  viewRef: { current: ViewState },
+  setViewRef: { current: (v: ViewState) => void },
+): () => void {
+  const plugin = viewer.plugin;
+  const canvas3d = plugin?.canvas3d;
+  if (!plugin || !canvas3d) return () => {};
+
+  // The renderer's settings as created, so only deliberate changes are stored.
+  const defaultCanvas3dProps = JSON.parse(JSON.stringify(canvas3d.props));
+
+  // Applying the saved view moves the camera and the layout, which would
+  // otherwise read as user changes and be written straight back.
+  let applying = true;
+  const saved = viewRef.current ?? {};
+  try {
+    if (saved.layout) plugin.layout.setProps(saved.layout);
+    if (saved.canvas3d) canvas3d.setProps(saved.canvas3d);
+    if (saved.camera) canvas3d.camera.setState(saved.camera);
+  } catch (err) {
+    console.error("Could not restore the saved Mol* view", err);
+  }
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * The view as it stands with nothing touched. Compared against, so a frame
+   * that is merely looked at keeps its clean URL — only a deliberate change
+   * adds `view` to it.
+   */
+  let lastWritten: string | undefined;
+
+  const currentView = (): ViewState | undefined => {
+    try {
+      const next: ViewState = {
+        layout: JSON.parse(JSON.stringify(plugin.layout.state)),
+        camera: JSON.parse(JSON.stringify(canvas3d.camera.getSnapshot())),
+      };
+      const changed = diffFrom(canvas3d.props, defaultCanvas3dProps);
+      if (changed) next.canvas3d = changed;
+      return next;
+    } catch (err) {
+      console.error("Could not read the Mol* view", err);
+      return undefined;
+    }
+  };
+
+  const persist = () => {
+    if (applying) return;
+    const next = currentView();
+    if (!next) return;
+    const serialized = JSON.stringify(next);
+    if (serialized === lastWritten) return;
+    lastWritten = serialized;
+    setViewRef.current(next);
+  };
+
+  const schedule = () => {
+    clearTimeout(timer);
+    timer = setTimeout(persist, VIEW_COMMIT_DEBOUNCE_MS);
+  };
+
+  // These are hints that something may have changed, not a complete account
+  // of it: `layout.events.updated` does not fire for `layout.setProps`, so
+  // panel changes would otherwise go unnoticed until the next redraw. The
+  // interval is the backstop — persist() compares before writing, so a viewer
+  // nobody is touching costs one small JSON.stringify per tick and writes
+  // nothing.
+  const subs = [
+    canvas3d.didDraw?.subscribe?.(schedule),
+    plugin.layout?.events?.updated?.subscribe?.(schedule),
+  ];
+  const poll = setInterval(schedule, VIEW_POLL_MS);
+
+  // Let the restore settle, then take that as the baseline: the camera drifts
+  // slightly while a structure is framed, and none of that is a user decision.
+  const settle = setTimeout(() => {
+    lastWritten = JSON.stringify(currentView());
+    applying = false;
+  }, VIEW_COMMIT_DEBOUNCE_MS);
+
+  return () => {
+    clearTimeout(timer);
+    clearTimeout(settle);
+    clearInterval(poll);
+    for (const sub of subs) sub?.unsubscribe?.();
+  };
+}
+
 export function MolstarViewer({ help }: { help: HelpConfig }) {
   const [viewOptions] = useHashParamJson<Record<string, unknown>>(
     "options",
@@ -146,6 +292,13 @@ export function MolstarViewer({ help }: { help: HelpConfig }) {
   );
   // A PDB id straight from the URL, so the frame is useful with no upstream.
   const [pdbIdParam] = useHashParam("pdbId");
+  // The saved look of the viewer. Read through a ref inside the effect below:
+  // as a dependency it would rebuild the viewer on every camera move.
+  const [view, setView] = useHashParamJson<ViewState>("view", {});
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const setViewRef = useRef(setView);
+  setViewRef.current = setView;
   const metaframeInputs = useMetaframeInputs();
 
   /**
@@ -191,6 +344,7 @@ export function MolstarViewer({ help }: { help: HelpConfig }) {
     if (!container || !source) return;
     let cancelled = false;
     const objectUrls: string[] = [];
+    let subscriptions: (() => void) | undefined;
     setLoading(true);
 
     (async () => {
@@ -199,12 +353,16 @@ export function MolstarViewer({ help }: { help: HelpConfig }) {
         if (cancelled) return;
 
         viewerRef.current?.plugin?.dispose();
+        // Exposed for debugging and for anything that wants to drive the
+        // viewer directly, the way the pyodide frame exposes its runtime.
+        (globalThis as Any).molstarViewer = undefined;
         viewerRef.current = await Viewer.create(container, {
           ...DEFAULT_VIEWER_OPTIONS,
           ...viewOptions,
         });
         if (cancelled) return;
         const viewer = viewerRef.current;
+        (globalThis as Any).molstarViewer = viewer;
 
         const objectUrl = (blob: Blob) => {
           const url = URL.createObjectURL(blob);
@@ -245,6 +403,9 @@ export function MolstarViewer({ help }: { help: HelpConfig }) {
             });
             break;
         }
+
+        if (cancelled) return;
+        subscriptions = syncView(viewer, viewRef, setViewRef);
       } catch (err) {
         if (!cancelled) setError(String(err));
       } finally {
@@ -254,6 +415,7 @@ export function MolstarViewer({ help }: { help: HelpConfig }) {
 
     return () => {
       cancelled = true;
+      subscriptions?.();
       for (const url of objectUrls) URL.revokeObjectURL(url);
     };
   }, [container, source, viewOptions]);

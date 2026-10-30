@@ -29,6 +29,25 @@ them back on there. The PDB provider can be switched between `rcsb` and `pdbe`.
 Settings are stored in the URL, so a configured viewer is shareable as it
 stands.
 
+## Saved view
+
+Changes you make inside Mol* are written back to the URL, in a `view` hash
+param, so the viewer you are looking at is the viewer you share:
+
+- **panel layout** — expanded, controls shown, which regions are open
+- **camera** — position, target, orientation, field of view
+- **renderer settings** — background, lighting, quality and the rest, stored as
+  the difference from the defaults so an untouched setting costs nothing
+
+Nothing is written until you actually change something, so a frame you only
+look at keeps a clean URL.
+
+**What is not saved:** the structure tree — representations, selections,
+components added through Mol*'s own controls. Mol*'s full state snapshot is
+about 15 KB of JSON for a small structure, roughly 37 KB once encoded into a
+hash, and it grows with the structure, so it does not belong in a URL. If you
+need that, send the snapshot through a metaframe input instead of the URL.
+
 ## Source
 
 [https://github.com/metapages/metaframes](https://github.com/metapages/metaframes)

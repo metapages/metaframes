@@ -104,19 +104,22 @@ open state in a hash param (`edit` for the markdown editor) so a shared URL
 reopens it; state travels between a panel and the renderer through hash params
 only, so neither needs to know about the other.
 
-### `?edit=true` — the menu
+### The menu
 
-`?edit=true` opens the whole authoring surface: the header bar, and a panel
-beside the renderer. Without it a frame is **only its renderer** — no header,
-no panels, none of the editor fetched. That is what an embed is, and what a
-shared link should be, which is why the copy action strips `edit` from the URL
-it puts on the clipboard while leaving the page you are working in alone.
+Opening and closing the menu is **in memory**. Toggling it leaves the URL
+byte-for-byte unchanged — nothing to strip, nothing for a metapage to bake in
+by saving at the wrong moment, and no write the parent could mistake for a
+change to the document. The frame's own button is always reachable, so none of
+this depends on the URL.
 
-It lives in the **search query, not the hash**. The hash is the frame's state:
-`@metapages/metapage` watches it and reports changes up to the parent metapage,
-so a menu toggle in the hash looked like the document had changed. Whether the
-menu happens to be open is local to one tab. See
-[`lib/search/useSearchParam.ts`](./lib/search/useSearchParam.ts).
+With the menu closed a frame is **only its renderer** — no header, no panels,
+none of the editor fetched. That is what an embed is, and what a shared link
+should be.
+
+`?edit=true` is optional configuration, read once at load and never written:
+it opens a frame with the menu already showing, which is how the deployed
+markdown metaframe behaves. The copy action still strips it, so a link you
+share opens the document rather than someone else's workbench.
 
 Opening the menu lands on the frame's first declared panel (the editor, for
 markdown). The header then holds **one** selection: panels behave like tabs,

@@ -6,7 +6,7 @@ import { type HelpConfig, helpUrlFrom } from "../lib/help.ts";
 import { useHashParam } from "../lib/hash/useHashParam.ts";
 import {
   deleteSearchParamFromUrl,
-  useSearchParamBoolean,
+  getSearchParamBoolean,
 } from "../lib/search/useSearchParam.ts";
 import { type HeaderAction, MainHeader } from "./MainHeader.tsx";
 import { PanelHeader } from "./PanelHeader.tsx";
@@ -16,12 +16,14 @@ import { IconList } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
 
 /**
- * The search param that means "the menu is open".
+ * Optional configuration: `?edit=true` opens a frame with its menu already
+ * showing, which is how the deployed markdown metaframe behaves.
  *
- * A search param rather than a hash param: the hash is the frame's state,
- * which @metapages/metapage watches and reports up to the parent metapage, so
- * putting the menu there made every toggle look like the document had changed.
- * Whether the menu is open is local to this tab.
+ * Read once at mount and never written. Opening and closing the menu is held
+ * in memory, so toggling it leaves the URL byte-for-byte unchanged — nothing
+ * to strip, nothing for a metapage to bake in by saving at the wrong moment,
+ * and no write to the hash that @metapages/metapage would report upward as a
+ * change to the document.
  */
 const SEARCH_KEY_EDIT = "edit";
 
@@ -131,13 +133,19 @@ export function FrameShell(
   }: FrameShellProps,
 ): JSX.Element {
   const [mode] = useHashParam("hm");
-  // The menu's open state lives in the query: a frame with no `edit` is just
-  // its renderer, which is what an embed and a shared link should be.
-  const [edit, setEdit] = useSearchParamBoolean(SEARCH_KEY_EDIT);
+  // Whether the menu is open: in memory, not in the URL. A frame starts as
+  // just its renderer — what an embed and a shared link should be — unless an
+  // author asked otherwise with `?edit=true`.
+  const [edit, setEdit] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    // Read after mount, not during render: the server cannot see the URL the
+    // browser has, and guessing would mean a hydration mismatch.
+    if (getSearchParamBoolean(SEARCH_KEY_EDIT)) setEdit(true);
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -241,7 +249,7 @@ export function FrameShell(
           actions={actions}
           shownPanel={activeKey}
           onWordmarkClick={() => setChosen(null)}
-          onClose={() => setEdit(undefined)}
+          onClose={() => setEdit(false)}
         />
       )}
 

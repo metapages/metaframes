@@ -91,15 +91,30 @@ dev: install _mkcert
 # DEV: TLS certs for localhost and *.localhost. An https parent page cannot
 # embed an http iframe, so TLS is required to test a frame as it is really used.
 # https://blog.filippo.io/mkcert-valid-https-certificates-for-localhost/
+# DEV: TLS certs for localhost and every frame's *.localhost origin.
+#
+# Each subdomain is named explicitly. A `*.localhost` wildcard looks tidier but
+# Chrome rejects it with ERR_CERT_COMMON_NAME_INVALID: a wildcard is not valid
+# directly under a single-label top-level domain. The cert is regenerated when
+# a new frame adds a hostname it does not yet cover.
 @_mkcert:
     #!/usr/bin/env bash
     set -euo pipefail
-    if [ -f .certs/localhost.pem ]; then exit 0; fi
     if ! command -v mkcert &> /dev/null; then echo -e "💥 {{ bold }}mkcert{{ normal }} is not installed: https://github.com/FiloSottile/mkcert"; exit 1; fi
+    HOSTS=$(deno run --allow-read scripts/frame-hosts.ts)
+    if [ -f .certs/localhost.pem ]; then
+        SANS=$(openssl x509 -in .certs/localhost.pem -noout -ext subjectAltName 2>/dev/null || echo "")
+        MISSING=""
+        for h in $HOSTS; do
+            case "$SANS" in *"DNS:$h"*) ;; *) MISSING="$MISSING $h" ;; esac
+        done
+        if [ -z "$MISSING" ]; then exit 0; fi
+        echo -e "  🔐 {{ yellow }}certificate is missing:$MISSING — regenerating{{ normal }}"
+    fi
     mkdir -p .certs
     mkcert -install
-    mkcert -cert-file .certs/localhost.pem -key-file .certs/localhost-key.pem localhost '*.localhost' 127.0.0.1 ::1
-    echo -e "  🔐 {{ green }}.certs/localhost.pem{{ normal }}"
+    mkcert -cert-file .certs/localhost.pem -key-file .certs/localhost-key.pem localhost $HOSTS 127.0.0.1 ::1
+    echo -e "  🔐 {{ green }}.certs/localhost.pem{{ normal }} covers localhost $HOSTS"
 
 @_ensure_wrangler:
     if [ ! -f "{{ wrangler }}" ]; then deno install --allow-scripts npm:wrangler; fi

@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import { fresh } from "@fresh/plugin-vite";
 import tailwindcss from "@tailwindcss/vite";
+import { hostRewrite } from "./lib/vite/hostRewrite.ts";
 import { frameReadmes } from "./lib/vite/frameReadmes.ts";
 
 /**
@@ -37,6 +38,9 @@ const IGNORE = [
 
 export default defineConfig({
   plugins: [
+    // Before fresh(): its dev middleware rebuilds the URL from this config and
+    // drops the Host header, so the subdomain has to become a path first.
+    hostRewrite(),
     // Each metaframe is a directory under ./frames/, so the frames directory
     // *is* the Fresh route directory.
     fresh({ routeDir: "./frames", ignore: IGNORE }),

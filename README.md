@@ -104,13 +104,19 @@ open state in a hash param (`edit` for the markdown editor) so a shared URL
 reopens it; state travels between a panel and the renderer through hash params
 only, so neither needs to know about the other.
 
-### `edit` — the menu
+### `?edit=true` — the menu
 
-`edit=true` opens the whole authoring surface: the header bar, and a panel
+`?edit=true` opens the whole authoring surface: the header bar, and a panel
 beside the renderer. Without it a frame is **only its renderer** — no header,
 no panels, none of the editor fetched. That is what an embed is, and what a
 shared link should be, which is why the copy action strips `edit` from the URL
 it puts on the clipboard while leaving the page you are working in alone.
+
+It lives in the **search query, not the hash**. The hash is the frame's state:
+`@metapages/metapage` watches it and reports changes up to the parent metapage,
+so a menu toggle in the hash looked like the document had changed. Whether the
+menu happens to be open is local to one tab. See
+[`lib/search/useSearchParam.ts`](./lib/search/useSearchParam.ts).
 
 Opening the menu lands on the frame's first declared panel (the editor, for
 markdown). The header then holds **one** selection: panels behave like tabs,
@@ -135,6 +141,12 @@ module's own getters, setters and `addEventListenerHashParam*` subscriptions
 outside a component. Full rules, including the compatibility constraints that
 keep published metapage URLs working, are in the `hash-params` skill
 ([`.claude/skills/hash-params/SKILL.md`](./.claude/skills/hash-params/SKILL.md)).
+
+What does **not** belong in the hash is local UI — whether a panel happens to
+be open in this tab. That goes in the search query
+([`lib/search/useSearchParam.ts`](./lib/search/useSearchParam.ts)), where
+nothing downstream reacts to it. `URLSearchParams` is the right tool there; the
+rule against hand-rolling applies to the hash, whose format the module owns.
 
 A frame with an editor should not hand-roll the editing loop either. Use
 [`lib/hash/useHashParamDocument.ts`](./lib/hash/useHashParamDocument.ts), which

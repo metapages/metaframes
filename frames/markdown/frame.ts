@@ -35,7 +35,6 @@ export const frame: FrameConfig = {
       "md",
       "base64",
       "url",
-      "edit",
       "options",
       "bgColor",
       "editorWidth",

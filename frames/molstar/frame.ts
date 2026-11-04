@@ -27,7 +27,7 @@ export const frame: FrameConfig = {
       "target.gro": { type: "gromacs/gro", description: "gromacs topology" },
     },
     outputs: {},
-    hashParams: ["options", "pdbId", "view", "edit", "hm"],
+    hashParams: ["options", "pdbId", "view", "hm"],
   },
   wordmark,
   options,

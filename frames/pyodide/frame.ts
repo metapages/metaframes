@@ -21,7 +21,7 @@ export const frame: FrameConfig = {
     // /outputs becomes an output.
     inputs: { "*": { type: "application/octet-stream:base64" } },
     outputs: { "*": { type: "application/octet-stream:base64" } },
-    hashParams: ["py", "options", "edit", "hm"],
+    hashParams: ["py", "options", "hm"],
   },
   wordmark,
   options,

@@ -1,9 +1,13 @@
 import type { ComponentChildren, JSX } from "preact";
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
-import { deleteHashParamFromUrl } from "@metapages/hash-query";
+
 import type { FrameOption, ToolbarItem } from "../lib/registry.ts";
 import { type HelpConfig, helpUrlFrom } from "../lib/help.ts";
-import { useHashParam, useHashParamBoolean } from "../lib/hash/useHashParam.ts";
+import { useHashParam } from "../lib/hash/useHashParam.ts";
+import {
+  deleteSearchParamFromUrl,
+  useSearchParamBoolean,
+} from "../lib/search/useSearchParam.ts";
 import { type HeaderAction, MainHeader } from "./MainHeader.tsx";
 import { PanelHeader } from "./PanelHeader.tsx";
 import { OptionsPanel } from "./OptionsPanel.tsx";
@@ -11,14 +15,21 @@ import { HelpPanel } from "./HelpPanel.tsx";
 import { IconList } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
 
-/** The hash param that means "the menu is open". */
-const HASH_KEY_EDIT = "edit";
+/**
+ * The search param that means "the menu is open".
+ *
+ * A search param rather than a hash param: the hash is the frame's state,
+ * which @metapages/metapage watches and reports up to the parent metapage, so
+ * putting the menu there made every toggle look like the document had changed.
+ * Whether the menu is open is local to this tab.
+ */
+const SEARCH_KEY_EDIT = "edit";
 
 /**
- * Params that describe *authoring*, not the document, and so are left out of a
- * copied URL. A link you share should open the thing itself.
+ * Params describing *authoring* rather than the document, left out of a copied
+ * URL. A link you share should open the thing itself.
  */
-const AUTHORING_PARAMS = [HASH_KEY_EDIT];
+const AUTHORING_PARAMS = [SEARCH_KEY_EDIT];
 
 /**
  * A panel a frame supplies itself — an editor, an inspector — for what
@@ -77,11 +88,12 @@ export interface FrameAction {
  *
  * The shape, and why:
  *
- * - **`edit` is the menu.** Without it a frame is only its renderer — no
- *   header, no panels, nothing of the editor loaded. With `edit=true` the
- *   whole authoring surface opens: header bar, and a panel beside the
- *   renderer. It is one hash param for one idea, the same way framejs.io's
- *   close button turns its editor off.
+ * - **`?edit=true` is the menu.** Without it a frame is only its renderer — no
+ *   header, no panels, nothing of the editor loaded. With it the whole
+ *   authoring surface opens: header bar, and a panel beside the renderer. It
+ *   is one param for one idea, the same way framejs.io's close button turns
+ *   its editor off. It sits in the query rather than the hash because it is
+ *   local UI, not part of the document the frame is showing.
  *
  * - The frame's renderer is the page. It sits in one fixed position in a
  *   single element tree and is never moved or unmounted by the chrome.
@@ -119,9 +131,9 @@ export function FrameShell(
   }: FrameShellProps,
 ): JSX.Element {
   const [mode] = useHashParam("hm");
-  // The menu's open state lives in the URL: a frame with no `edit` is just its
-  // renderer, which is what an embed and a shared link should be.
-  const [edit, setEdit] = useHashParamBoolean(HASH_KEY_EDIT);
+  // The menu's open state lives in the query: a frame with no `edit` is just
+  // its renderer, which is what an embed and a shared link should be.
+  const [edit, setEdit] = useSearchParamBoolean(SEARCH_KEY_EDIT);
   const [mounted, setMounted] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -140,7 +152,7 @@ export function FrameShell(
   const copyUrl = useCallback(() => {
     let url = new URL(globalThis.location.href);
     for (const param of AUTHORING_PARAMS) {
-      url = deleteHashParamFromUrl(url, param);
+      url = deleteSearchParamFromUrl(url, param);
     }
     globalThis.navigator?.clipboard?.writeText(url.href)
       .then(() => setToast("Copied URL to clipboard"))

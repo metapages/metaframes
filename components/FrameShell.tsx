@@ -1,13 +1,9 @@
 import type { ComponentChildren, JSX } from "preact";
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
-
+import { deleteHashParamFromUrl } from "@metapages/hash-query";
 import type { FrameOption, ToolbarItem } from "../lib/registry.ts";
 import { type HelpConfig, helpUrlFrom } from "../lib/help.ts";
-import { useHashParam } from "../lib/hash/useHashParam.ts";
-import {
-  deleteSearchParamFromUrl,
-  getSearchParamBoolean,
-} from "../lib/search/useSearchParam.ts";
+import { useHashParam, useHashParamBoolean } from "../lib/hash/useHashParam.ts";
 import { type HeaderAction, MainHeader } from "./MainHeader.tsx";
 import { PanelHeader } from "./PanelHeader.tsx";
 import { OptionsPanel } from "./OptionsPanel.tsx";
@@ -15,23 +11,14 @@ import { HelpPanel } from "./HelpPanel.tsx";
 import { IconList } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
 
-/**
- * Optional configuration: `?edit=true` opens a frame with its menu already
- * showing, which is how the deployed markdown metaframe behaves.
- *
- * Read once at mount and never written. Opening and closing the menu is held
- * in memory, so toggling it leaves the URL byte-for-byte unchanged — nothing
- * to strip, nothing for a metapage to bake in by saving at the wrong moment,
- * and no write to the hash that @metapages/metapage would report upward as a
- * change to the document.
- */
-const SEARCH_KEY_EDIT = "edit";
+/** The hash param that means "the menu is open". */
+const HASH_KEY_EDIT = "edit";
 
 /**
- * Params describing *authoring* rather than the document, left out of a copied
- * URL. A link you share should open the thing itself.
+ * Params that describe *authoring*, not the document, and so are left out of a
+ * copied URL. A link you share should open the thing itself.
  */
-const AUTHORING_PARAMS = [SEARCH_KEY_EDIT];
+const AUTHORING_PARAMS = [HASH_KEY_EDIT];
 
 /**
  * A panel a frame supplies itself — an editor, an inspector — for what
@@ -90,12 +77,11 @@ export interface FrameAction {
  *
  * The shape, and why:
  *
- * - **`?edit=true` is the menu.** Without it a frame is only its renderer — no
- *   header, no panels, nothing of the editor loaded. With it the whole
- *   authoring surface opens: header bar, and a panel beside the renderer. It
- *   is one param for one idea, the same way framejs.io's close button turns
- *   its editor off. It sits in the query rather than the hash because it is
- *   local UI, not part of the document the frame is showing.
+ * - **`edit` is the menu.** Without it a frame is only its renderer — no
+ *   header, no panels, nothing of the editor loaded. With `edit=true` the
+ *   whole authoring surface opens: header bar, and a panel beside the
+ *   renderer. It is one hash param for one idea, the same way framejs.io's
+ *   close button turns its editor off.
  *
  * - The frame's renderer is the page. It sits in one fixed position in a
  *   single element tree and is never moved or unmounted by the chrome.
@@ -133,19 +119,13 @@ export function FrameShell(
   }: FrameShellProps,
 ): JSX.Element {
   const [mode] = useHashParam("hm");
-  // Whether the menu is open: in memory, not in the URL. A frame starts as
-  // just its renderer — what an embed and a shared link should be — unless an
-  // author asked otherwise with `?edit=true`.
-  const [edit, setEdit] = useState(false);
+  // The menu's open state lives in the URL: a frame with no `edit` is just its
+  // renderer, which is what an embed and a shared link should be.
+  const [edit, setEdit] = useHashParamBoolean(HASH_KEY_EDIT);
   const [mounted, setMounted] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Read after mount, not during render: the server cannot see the URL the
-    // browser has, and guessing would mean a hydration mismatch.
-    if (getSearchParamBoolean(SEARCH_KEY_EDIT)) setEdit(true);
-    setMounted(true);
-  }, []);
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!toast) return;
@@ -160,7 +140,7 @@ export function FrameShell(
   const copyUrl = useCallback(() => {
     let url = new URL(globalThis.location.href);
     for (const param of AUTHORING_PARAMS) {
-      url = deleteSearchParamFromUrl(url, param);
+      url = deleteHashParamFromUrl(url, param);
     }
     globalThis.navigator?.clipboard?.writeText(url.href)
       .then(() => setToast("Copied URL to clipboard"))
@@ -249,7 +229,7 @@ export function FrameShell(
           actions={actions}
           shownPanel={activeKey}
           onWordmarkClick={() => setChosen(null)}
-          onClose={() => setEdit(false)}
+          onClose={() => setEdit(undefined)}
         />
       )}
 

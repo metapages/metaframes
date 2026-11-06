@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "preact/hooks";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import {
   setHashParamInWindow,
   stringFromBase64String,
@@ -41,35 +41,77 @@ function absolutizeImages(markdown: string, docUrl: string): string {
 /**
  * The markdown document to render, and a setter that persists it.
  *
- * Sources, in the order the deployed metaframe resolves them: metaframe inputs
- * (`markdown` / `md` / `markdown-base64` / `md-base64` / `mermaid` /
- * `mermaid-base64`), a `url` hash param fetched over CORS, or the `md` /
- * legacy `base64` hash param.
+ * Three sources, in strict order of authority:
+ *
+ * 1. **metaframe inputs** (`markdown` / `md` / `markdown-base64` /
+ *    `md-base64` / `mermaid` / `mermaid-base64`) — live data, always wins.
+ * 2. **the `url` hash param** — fetched over CORS. It *overrides* `md`: while
+ *    the fetch is in flight nothing is shown, so a URL-backed document never
+ *    flashes the stale `md` it is about to replace.
+ * 3. **the `md` hash param** (or legacy `base64`).
+ *
+ * Editing a URL-backed document detaches it: the text becomes this frame's
+ * own, it is written to `md`, and `url` is dropped — otherwise the next load
+ * would refetch and discard the edit. So `url` is the document's *origin*,
+ * not a live binding, and the first keystroke is what severs it.
  */
 export function useMarkdown(): [string, (markdown: string) => void] {
   const metaframe = useMetaframe();
   const [url] = useHashParam(HashKeyUrl);
-  // The live document: renders immediately, reaches the hash once typing
-  // pauses, and ignores its own write coming back. Shared with every other
-  // frame that has an editor.
+  // The frame's *own* document: renders immediately, reaches the hash once
+  // typing pauses, and ignores its own write coming back. Shared with every
+  // other frame that has an editor.
   const doc = useHashParamDocument(HashKeyMarkdown);
   const [fromHashLegacy] = useHashParamBase64(HashKeyMarkdownLegacy);
 
-  const markdown = doc.value;
+  /**
+   * Text from a metaframe input, and text fetched from `url`.
+   *
+   * These are held apart from `doc` rather than pushed into it, which is the
+   * whole point: `doc` mirrors the `md` hash param, so anything written there
+   * is at the mercy of the next `md` notification. hash-query dispatches a
+   * synthetic hashchange after it rewrites the hash, so that notification can
+   * land *after* a fetch resolves — and a URL-backed document would silently
+   * blank itself the moment any hash param changed. Precedence belongs in one
+   * expression, not in a race between effects.
+   *
+   * `undefined` means "this tier has nothing to say"; `""` is a real value, so
+   * a `url` that has not resolved yet shows empty rather than falling through
+   * to `md`.
+   */
+  const [fromInput, setFromInput] = useState<string | undefined>(undefined);
+  const [fromUrl, setFromUrl] = useState<string | undefined>(
+    () => (url ? "" : undefined),
+  );
+
+  const markdown = fromInput ?? (fromUrl !== undefined ? fromUrl : doc.value);
+
+  /**
+   * The text last fetched from `url`. An editor mounting on it echoes it
+   * straight back through onChange, and that echo must not be mistaken for an
+   * edit — it would detach a document nobody touched.
+   */
   const fromUrlRef = useRef<string | undefined>(undefined);
   const previousInputRef = useRef<string | undefined>(undefined);
 
-  /** A metaframe input arrived: show it, but do not write it back. */
+  /** A metaframe input arrived: show it, but do not write it to the hash. */
   const setIfNew = useCallback((next: string) => {
     if (previousInputRef.current === next) return;
     previousInputRef.current = next;
-    doc.replace(next);
-  }, [doc.replace]);
+    setFromInput(next);
+  }, []);
 
-  /** Edited here. Writing content invalidates any `url` param. */
+  /** Edited here. The document becomes this frame's own. */
   const setMarkdownAndPersist = useCallback((next: string) => {
     if (fromUrlRef.current === next) return;
+    fromUrlRef.current = undefined;
+    // Drop the higher tiers in the same tick, so the edit is visible at once
+    // rather than after `url` has finished leaving the hash.
+    setFromInput(undefined);
+    setFromUrl(undefined);
     doc.edit(next);
+    // `url` described a document that no longer exists; leaving it would
+    // refetch over the edit on the next load.
     setHashParamInWindow(HashKeyUrl, undefined);
   }, [doc.edit]);
 
@@ -121,26 +163,36 @@ export function useMarkdown(): [string, (markdown: string) => void] {
   // `url` hash param: fetch and render a remote document. This is what powers
   // every frame's Help tab.
   useEffect(() => {
-    if (!url) return;
+    if (!url) {
+      // No url (or an edit just removed it): `md` is the document again.
+      setFromUrl(undefined);
+      return;
+    }
+
     let cancelled = false;
+    // Withhold `md` from the moment a url appears, so a URL-backed document
+    // never flashes the content it is about to replace.
+    setFromUrl("");
+
+    const settle = (payload: string) => {
+      if (!cancelled) setFromUrl(payload);
+    };
 
     (async () => {
       try {
         const res = await fetch(url, { mode: "cors", redirect: "follow" });
         if (!res.ok) {
-          if (!cancelled) {
-            doc.replace(
-              `# Error getting URL: ${url}\n\n - status: ${res.status}\n - statusText: ${res.statusText}`,
-            );
-          }
+          settle(
+            `# Error getting URL: ${url}\n\n - status: ${res.status}\n - statusText: ${res.statusText}`,
+          );
           return;
         }
         const payload = absolutizeImages(await res.text(), url);
         if (cancelled) return;
         fromUrlRef.current = payload;
-        doc.replace(payload);
+        settle(payload);
       } catch (err) {
-        if (!cancelled) doc.replace(`# Error getting URL: ${url}\n\n${err}`);
+        settle(`# Error getting URL: ${url}\n\n${err}`);
       }
     })();
 

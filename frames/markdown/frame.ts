@@ -37,6 +37,8 @@ export const frame: FrameConfig = {
       "url",
       "edit",
       "options",
+      // Transient styling: restyles the render without touching the content.
+      "css",
       "bgColor",
       "editorWidth",
       "hm",

@@ -6,14 +6,10 @@ import type { FrameOption, ToolbarItem } from "../../lib/registry.ts";
 /** Mono wordmark in the header, the way framejs.io shows "js". */
 export const wordmark = "md";
 
+// `dm` ("display mode", with its "slide" presentation layout) was removed: the
+// `css` hash param restyles a document arbitrarily, so the renderer no longer
+// carries a second hard-coded layout. See lib/hash/useHashParamCss.ts.
 export const options: FrameOption[] = [
-  {
-    name: "dm",
-    displayName: "Display mode",
-    type: "option",
-    options: ["default", "slide"],
-    default: "default",
-  },
   {
     name: "theme",
     displayName: "Mermaid theme",

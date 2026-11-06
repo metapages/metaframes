@@ -9,14 +9,14 @@ import {
   useHashParamJson,
 } from "../../../lib/hash/useHashParam.ts";
 import { useMarkdown } from "../../../lib/markdown/useMarkdown.ts";
+import { useHashParamCss } from "../../../lib/hash/useHashParamCss.ts";
 import {
+  headingClassPlugin,
   mermaidFencePlugin,
-  singleScreenPlugin,
 } from "../../../lib/markdown/plugins.ts";
 import { options, toolbar, wordmark } from "../config.ts";
 
 interface Options {
-  dm?: string; // display mode ("slide")
   h?: string; // heading css classes
   theme?: string; // mermaid theme
 }
@@ -47,13 +47,8 @@ async function ensureMermaid(theme: string) {
 function renderMarkdown(source: string, options: Options): string {
   const md = markdownit({ html: true, linkify: true, typographer: true });
   md.use(mermaidFencePlugin);
-  md.use(singleScreenPlugin, options ?? {});
+  md.use(headingClassPlugin, options ?? {});
   md.use(markdownItAnchor, { level: [1, 2, 3] });
-  if (options?.dm === "slide") {
-    md.renderer.rules.table_open = () =>
-      '<div class="row"><div class="rowCellTable">\n<table>\n';
-    md.renderer.rules.table_close = () => "</table>\n</div>\n</div>";
-  }
   return md.render(source ?? "");
 }
 
@@ -61,6 +56,8 @@ export function MarkdownView({ help }: { help: HelpConfig }) {
   const [markdown, setMarkdown] = useMarkdown();
   const [viewOptions] = useHashParamJson<Options>("options", {});
   const [bgColor] = useHashParam("bgColor");
+  // Arbitrary styling from the URL, which is what replaced `dm=slide`.
+  useHashParamCss();
   const [editorWidth] = useHashParam("editorWidth", "80ch");
   // A ref *callback* into state, not useRef: the effect below writes HTML into
   // this node, so it has to re-run if the node is ever replaced. A plain ref

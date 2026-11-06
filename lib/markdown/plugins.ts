@@ -23,47 +23,38 @@ export function mermaidFencePlugin(md: any) {
   };
 }
 
-interface SingleScreenOptions {
-  dm?: string; // display mode; "slide" enables slide layout
-  h?: string; // heading css classes
+interface HeadingClassOptions {
+  /** Space- or comma-separated css classes to put on h1–h3. */
+  h?: string;
 }
 
-const CENTERED_HEADINGS: Record<string, boolean> = {
+const TAGGED_HEADINGS: Record<string, boolean> = {
   h1: true,
   h2: true,
   h3: true,
 };
 
-// Slide/single-screen display mode: centers images, tags text, and lets
-// headings carry custom css classes (from options.h).
-export function singleScreenPlugin(md: any, opts: SingleScreenOptions = {}) {
-  md.core.ruler.push("single-screen", (state: any) => {
+/**
+ * Let h1–h3 carry custom css classes, from the `h` option.
+ *
+ * This is all that remains of what was `singleScreenPlugin`. Its `dm=slide`
+ * presentation mode is gone: the `css` hash param (lib/hash/useHashParamCss.ts)
+ * restyles a document without the renderer having to ship a second layout.
+ */
+export function headingClassPlugin(md: any, opts: HeadingClassOptions = {}) {
+  const classes = (opts.h ?? "").replace(" ", ",").split(",").filter(Boolean);
+  if (classes.length === 0) return;
+
+  md.core.ruler.push("heading-class", (state: any) => {
     const tokens = state.tokens;
     for (let i = 0; i < tokens.length; i++) {
-      const token = tokens[i];
-      const child0 = token?.children?.[0];
-      if (opts.dm === "slide") {
-        if (child0?.type === "image" && tokens[i - 1] && tokens[i + 1]) {
-          tokens[i - 1].tag = "div";
-          tokens[i - 1].attrPush(["class", "standalone-image-container"]);
-          tokens[i + 1].tag = "div";
-        }
-        if (child0?.type === "text" && tokens[i - 1]) {
-          tokens[i - 1].attrPush(["class", "markdown-text"]);
-        }
-      }
+      const open = tokens[i - 1];
       if (
-        child0?.type === "text" &&
-        tokens[i - 1] &&
-        CENTERED_HEADINGS[tokens[i - 1].tag || ""] &&
-        tokens[i - 1].type === "heading_open" &&
-        opts.h
+        tokens[i]?.children?.[0]?.type === "text" &&
+        open?.type === "heading_open" &&
+        TAGGED_HEADINGS[open.tag || ""]
       ) {
-        for (
-          const c of opts.h.replace(" ", ",").split(",").filter(Boolean)
-        ) {
-          tokens[i - 1].attrJoin("class", c);
-        }
+        for (const c of classes) open.attrJoin("class", c);
       }
     }
     return true;

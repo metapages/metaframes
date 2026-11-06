@@ -8,6 +8,7 @@ import { useEditorMode } from "../lib/hash/useEditorMode.ts";
 import { type HeaderAction, MainHeader } from "./MainHeader.tsx";
 import { PanelColumn } from "./PanelColumn.tsx";
 import { OptionsPanel } from "./OptionsPanel.tsx";
+import { SHELL_OPTIONS } from "./shellOptions.ts";
 import { HelpPanel } from "./HelpPanel.tsx";
 import { IconList } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
@@ -154,15 +155,27 @@ export function FrameShell(
       .catch(() => setToast("Could not copy URL"));
   }, []);
 
+  /**
+   * The frame's own settings, then the shell's. Every frame gets the shell's,
+   * so every frame can hide its own edit button from its settings panel —
+   * which is where the published editor put that control.
+   */
+  const settingsOptions = useMemo<FrameOption[]>(
+    () => [...options ?? [], ...SHELL_OPTIONS],
+    [options],
+  );
+
   /** Frame panels first, then the two the shell always provides. */
   const allPanels = useMemo<FramePanel[]>(() => {
     const list = [...panels];
-    if (options?.length) {
+    if (settingsOptions.length) {
       list.push({
         key: "settings",
         label: "settings",
         icon: "gear",
-        content: <OptionsPanel options={options} hashKey={optionsHashKey} />,
+        content: (
+          <OptionsPanel options={settingsOptions} hashKey={optionsHashKey} />
+        ),
       });
     }
     list.push({
@@ -173,7 +186,7 @@ export function FrameShell(
       content: mounted ? <HelpPanel url={helpUrlFrom(help)} /> : null,
     });
     return list;
-  }, [panels, options, optionsHashKey, help, mounted]);
+  }, [panels, settingsOptions, optionsHashKey, help, mounted]);
 
   /** Opening the menu lands on the frame's own first panel — its editor. */
   const defaultPanelKey = panels[0]?.key ?? null;

@@ -25,13 +25,25 @@ export type ToolbarItem = {
 };
 
 /** A declarative settings-form field, rendered by components/OptionsPanel.tsx. */
+/**
+ * A choice in a `type: "option"` select. A bare string is its own label; use
+ * the object form when the stored value is not what a person should read —
+ * `editor=invisible` means "visible on hover", which nobody would guess.
+ */
+export type FrameOptionChoice = string | { value: string; label: string };
+
 export interface FrameOption {
   name: string;
   displayName: string;
   type?: "string" | "boolean" | "option" | "number";
   default?: string | boolean | number;
+  /**
+   * One line under the label, for a setting whose consequence is not obvious
+   * from its name.
+   */
+  hint?: string;
   /** Choices, for type: "option". */
-  options?: string[];
+  options?: FrameOptionChoice[];
   /** Extra fields revealed when a given choice is selected. */
   suboptions?: Record<string, FrameOption[]>;
   /** Return an error message, or undefined when valid. */
@@ -46,6 +58,9 @@ export interface FrameOption {
    * looks — molstar's `pdbId` is the structure being viewed, so it belongs in
    * the URL beside `md` and `py`, not buried in a settings blob. Presentation
    * settings should stay in `options`, where they travel as one value.
+   *
+   * A value equal to `default` is written as *absent*, so a shared URL carries
+   * only what was actually changed.
    */
   hashParam?: boolean;
 }

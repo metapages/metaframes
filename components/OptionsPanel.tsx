@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "preact/hooks";
 import type { FrameOption } from "../lib/registry.ts";
 import { useHashParamJson } from "../lib/hash/useHashParam.ts";
 import {
@@ -10,6 +16,16 @@ export type OptionValues = Record<
   string,
   string | boolean | number | undefined
 >;
+
+/**
+ * Drop the undefined entries, so spreading a set of live param values over a
+ * set of defaults leaves the defaults standing where a param is absent.
+ */
+function defined(values: OptionValues): OptionValues {
+  return Object.fromEntries(
+    Object.entries(values).filter(([, v]) => v !== undefined),
+  );
+}
 
 /**
  * Expand `suboptions`: choosing a value in a `type: "option"` select reveals
@@ -112,6 +128,20 @@ export function OptionsPanel(
       ) as OptionValues,
     [defaults, all],
   );
+  /**
+   * Defaults for the standalone params. An absent param is not an empty
+   * field: the frame is running on its default, so that is what the form has
+   * to show, or the first Apply would silently change a setting nobody touched.
+   */
+  const ownDefaults = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(defaults).filter(([name]) =>
+          all.find((o) => o.name === name)?.hashParam
+        ),
+      ) as OptionValues,
+    [defaults, all],
+  );
 
   const [stored, setStored] = useHashParamJson<OptionValues>(
     hashKey,
@@ -120,19 +150,39 @@ export function OptionsPanel(
   const [ownValues, setOwnValues] = useHashParamSet(ownParams);
   const [draft, setDraft] = useState<OptionValues>({
     ...stored,
-    ...ownValues,
+    ...ownDefaults,
+    ...defined(ownValues),
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [dirty, setDirty] = useState(false);
+  /**
+   * The same flag, readable from an effect that may flush *after* an edit.
+   * Preact defers effects, so an effect scheduled by an earlier render can run
+   * once the user has already typed: reading `dirty` from that stale closure
+   * said "clean" and the sync below then overwrote the edit with the URL's
+   * value. The ref is set synchronously in the event handler, so whoever runs
+   * later sees the truth.
+   */
+  const dirtyRef = useRef(false);
+  const markDirty = useCallback((value: boolean) => {
+    dirtyRef.current = value;
+    setDirty(value);
+  }, []);
 
   const visible = useMemo(() => expand(options, draft), [options, draft]);
 
   // A standalone param can change from outside the form (the URL, another
   // frame). Reflect that, unless the user has unapplied edits to lose.
   useEffect(() => {
-    if (dirty) return;
-    setDraft((previous) => ({ ...previous, ...ownValues }));
-  }, [ownValues, dirty]);
+    if (dirtyRef.current) return;
+    setDraft((previous) => ({
+      ...previous,
+      // Re-asserted under the live values, so a param removed from outside
+      // falls back to the default rather than blanking the field.
+      ...ownDefaults,
+      ...defined(ownValues),
+    }));
+  }, [ownValues, ownDefaults]);
 
   const onChange = useCallback((name: string, raw: string | boolean) => {
     const option = all.find((o) => o.name === name);
@@ -140,8 +190,8 @@ export function OptionsPanel(
       ...previous,
       [name]: option?.type === "boolean" ? raw === true || raw === "1" : raw,
     }));
-    setDirty(true);
-  }, [all]);
+    markDirty(true);
+  }, [all, markDirty]);
 
   const apply = useCallback(() => {
     const found: Record<string, string> = {};
@@ -161,9 +211,11 @@ export function OptionsPanel(
       const option = all.find((o) => o.name === key);
       if (option?.hashParam) {
         // Kept even when empty: an empty value means "remove this param".
-        own[key] = value === undefined || value === ""
-          ? undefined
-          : coerce(option, value);
+        // So does the declared default — an absent param keeps a shared URL
+        // free of settings nobody chose.
+        const absent = value === undefined || value === "" ||
+          (option.default !== undefined && value === option.default);
+        own[key] = absent ? undefined : coerce(option, value);
         continue;
       }
       if (value === undefined) continue;
@@ -171,8 +223,8 @@ export function OptionsPanel(
     }
     setStored(blob);
     if (ownParams.length > 0) setOwnValues(own);
-    setDirty(false);
-  }, [draft, all, ownParams, setStored, setOwnValues]);
+    markDirty(false);
+  }, [draft, all, ownParams, setStored, setOwnValues, markDirty]);
 
   const reset = useCallback(() => {
     // Standalone params with no default are cleared rather than left behind.
@@ -181,8 +233,8 @@ export function OptionsPanel(
       ...defaults,
     });
     setErrors({});
-    setDirty(true);
-  }, [defaults, ownParams]);
+    markDirty(true);
+  }, [defaults, ownParams, markDirty]);
 
   return (
     <div class="flex h-full flex-col">
@@ -200,6 +252,9 @@ export function OptionsPanel(
               <label class="eyebrow" for={`option-${option.name}`}>
                 {option.displayName || option.name}
               </label>
+              {option.hint && (
+                <span class="text-sm text-ink-2">{option.hint}</span>
+              )}
               <OptionInput
                 option={option}
                 value={draft[option.name]}
@@ -247,7 +302,11 @@ function OptionInput(
         value={value === undefined ? "" : String(value)}
         onChange={(e) => onChange(option.name, e.currentTarget.value)}
       >
-        {option.options?.map((o) => <option key={o} value={o}>{o}</option>)}
+        {option.options?.map((choice) => {
+          const value = typeof choice === "string" ? choice : choice.value;
+          const label = typeof choice === "string" ? choice : choice.label;
+          return <option key={value} value={value}>{label}</option>;
+        })}
       </select>
     );
   }

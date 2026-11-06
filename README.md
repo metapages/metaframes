@@ -64,7 +64,8 @@ The point of the monorepo. Most of a metaframe used to be these:
 |---|---|
 | [`components/FrameShell.tsx`](./components/FrameShell.tsx) | Main / Options / Help tabs, the `editor` chrome modes, copy-URL button. Tabs mount on first use and stay mounted. |
 | [`components/PanelColumn.tsx`](./components/PanelColumn.tsx) | the panel beside the renderer and the handle that resizes the split, remembered per viewer in `localStorage` |
-| [`components/OptionsPanel.tsx`](./components/OptionsPanel.tsx) | the settings panel, generated from a frame's `FrameOption[]`. Fields share one `options` hash param; a field marked `hashParam` gets its own top-level param instead, for values that are part of what the frame *is* (molstar's `pdbId`) rather than how it looks |
+| [`components/OptionsPanel.tsx`](./components/OptionsPanel.tsx) | the settings panel, generated from a frame's `FrameOption[]`. Fields share one `options` hash param; a field marked `hashParam` gets its own top-level param instead, for values that are part of what the frame *is* (molstar's `pdbId`) rather than how it looks. A standalone param equal to its declared default is written as absent |
+| [`components/shellOptions.ts`](./components/shellOptions.ts) | settings the shell adds to every frame's panel, currently the `editor` control |
 | [`lib/hash/useHashParam.ts`](./lib/hash/useHashParam.ts) | Preact hooks over `@metapages/hash-query`, wire-compatible with every published URL |
 | [`lib/metaframe/useMetaframe.ts`](./lib/metaframe/useMetaframe.ts) | the metaframe postMessage protocol as hooks: inputs, outputs |
 | [`components/CodeMirror.tsx`](./components/CodeMirror.tsx) | editor, grammars loaded on demand |
@@ -130,6 +131,15 @@ was published under:
 | absent / `invisible` | the open-menu button is transparent until hovered, but always clickable |
 | `visible` | the open-menu button is always drawn |
 | `disabled` | no menu and no button, ever — the content is read-only here |
+
+It is settable from the settings panel of **every** frame, which is where the
+published editor put it ("Button Visibility"). The shell contributes that row
+to each frame's form — see
+[`components/shellOptions.ts`](./components/shellOptions.ts) — so no frame
+declares it, and a frame with no settings of its own still has a settings
+panel. Choosing *Hidden* switches the control off with it, exactly as v1
+warned in its own label: nothing can reopen the menu without removing
+`editor=disabled` from the URL.
 
 `hm` is **still read**, and forever: every metaframe deployed so far writes it,
 and the help convention all of them embed is

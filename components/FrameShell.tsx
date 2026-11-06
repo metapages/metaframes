@@ -34,8 +34,8 @@ export interface FramePanel {
   content: ComponentChildren;
   /**
    * CSS width of the panel column, until the viewer drags the split. Defaults
-   * to half the frame. The dragged width is remembered per viewer in
-   * localStorage and outranks this — see PanelColumn.tsx.
+   * to half the frame. One dragged width per frame is remembered per viewer in
+   * localStorage and outranks this, for every panel — see PanelColumn.tsx.
    */
   width?: string;
 }
@@ -258,8 +258,9 @@ export function FrameShell(
 
         {panel && (
           <PanelColumn
-            // Keyed, so each panel owns its own remembered width rather than
-            // inheriting the last one's.
+            // Keyed, so switching panels builds the new panel's content
+            // rather than diffing it against the old one's. The remembered
+            // width is the frame's, so it survives the remount.
             key={panel.key}
             frame={help.frame}
             panelKey={panel.key}

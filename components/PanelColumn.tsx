@@ -18,16 +18,22 @@ const COARSE_STEP_PX = 64;
 const MAX_WIDTH = `max(${MIN_PANEL_PX}px, calc(100% - ${MIN_RENDERER_PX}px))`;
 
 /**
- * One key per frame *and* per panel: an editor and a settings form want
- * different widths, and two frames are two different workbenches.
+ * One key per frame, shared by every panel in it: there is one split in this
+ * workbench and the viewer moved it. Keying per panel instead meant dragging
+ * the settings panel wider and then reopening the editor at its default — the
+ * same split, in the same place, forgetting where it was put.
  */
-function storageKey(frame: string, panel: string): string {
-  return `mtfm:panel-width:${frame}:${panel}`;
+function storageKey(frame: string): string {
+  return `mtfm:panel-width:${frame}`;
 }
 
 function readStoredWidth(frame: string, panel: string): number | null {
   try {
-    const raw = globalThis.localStorage?.getItem(storageKey(frame, panel));
+    const store = globalThis.localStorage;
+    // The per-panel key is what the first version of this wrote; read it so a
+    // width set before the split became one setting is not thrown away.
+    const raw = store?.getItem(storageKey(frame)) ??
+      store?.getItem(`${storageKey(frame)}:${panel}`);
     if (!raw) return null;
     const px = Number.parseFloat(raw);
     return Number.isFinite(px) && px > 0 ? px : null;
@@ -41,9 +47,12 @@ function readStoredWidth(frame: string, panel: string): number | null {
 
 function writeStoredWidth(frame: string, panel: string, px: number | null) {
   try {
-    const key = storageKey(frame, panel);
-    if (px === null) globalThis.localStorage?.removeItem(key);
-    else globalThis.localStorage?.setItem(key, String(Math.round(px)));
+    const store = globalThis.localStorage;
+    const key = storageKey(frame);
+    if (px === null) store?.removeItem(key);
+    else store?.setItem(key, String(Math.round(px)));
+    // Whatever the old per-panel key said is now stale either way.
+    store?.removeItem(`${key}:${panel}`);
   } catch {
     // See above: remembering is a convenience, never a requirement.
   }
@@ -52,6 +61,7 @@ function writeStoredWidth(frame: string, panel: string, px: number | null) {
 export interface PanelColumnProps {
   /** Namespace for the remembered width — the frame this panel belongs to. */
   frame: string;
+  /** Which panel this is. Not part of the remembered width; see storageKey. */
   panelKey: string;
   label: string;
   /**
@@ -70,7 +80,8 @@ export interface PanelColumnProps {
  * The width is **per viewer**, not part of the document: it lives in
  * `localStorage`, not in the hash, so dragging the editor wider never changes
  * the URL anyone else opens. A width the frame declares is the default until
- * the viewer moves it once.
+ * the viewer moves it once, and from then on every panel in this frame — the
+ * editor, the settings, the help — opens where the split was left.
  */
 export function PanelColumn(
   { frame, panelKey, label, declaredWidth, onClose, children }:
@@ -78,9 +89,9 @@ export function PanelColumn(
 ): JSX.Element {
   const asideRef = useRef<HTMLElement>(null);
   /**
-   * The viewer's width for this panel, in px, or `null` for "use the declared
-   * width". Read synchronously on mount so the panel never paints at the
-   * default width and then jumps.
+   * The viewer's width for this frame's split, in px, or `null` for "use the
+   * declared width". Read synchronously on mount so the panel never paints at
+   * the default width and then jumps.
    */
   const [width, setWidth] = useState<number | null>(() =>
     readStoredWidth(frame, panelKey)

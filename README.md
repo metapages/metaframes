@@ -154,8 +154,10 @@ this editable". See [`lib/hash/useEditorMode.ts`](./lib/hash/useEditorMode.ts).
 The panel column is resizable: drag the handle on its left edge, or focus it
 and use the arrow keys (shift for a coarser step, Home to reset — double-click
 does the same). The width is stored in `localStorage` under
-`mtfm:panel-width:<frame>:<panel>`, one entry per frame *and* panel, so an
-editor and a settings form keep their own widths.
+`mtfm:panel-width:<frame>`: **one split per frame**, shared by the editor, the
+settings and the help panel. Keying it per panel instead meant dragging the
+settings wider, reopening the editor, and finding the same split back at its
+default.
 
 It is deliberately **not** a hash param. How wide someone likes their editor is
 not part of the document, and must not travel in a shared URL. A frame may

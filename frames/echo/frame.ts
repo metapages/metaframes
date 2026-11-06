@@ -18,7 +18,7 @@ export const frame: FrameConfig = {
     // Wildcard in and out: echo does not care what flows through it.
     inputs: { "*": { type: "application/octet-stream:base64" } },
     outputs: { "*": { type: "application/octet-stream:base64" } },
-    hashParams: ["debug", "hm"],
+    hashParams: ["debug", "editor", "hm"],
   },
   wordmark,
   options,

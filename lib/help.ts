@@ -1,6 +1,10 @@
 import { FRAMES } from "./registry.ts";
 import { setHashParamsInUrl } from "@metapages/hash-query";
 import { frameBaseUrl } from "./host.ts";
+import {
+  HASH_KEY_EDITOR,
+  HASH_KEY_EDITOR_LEGACY,
+} from "./hash/useEditorMode.ts";
 
 /**
  * Where published metaframes render their help from. Used only as a fallback:
@@ -44,20 +48,23 @@ export function helpConfig(frameName: string): HelpConfig {
  * links to port 443.
  *
  * Reproduces the convention every existing metaframe uses:
- * `<markdown-origin>/#?hm=disabled&url=<frame-origin>/README.md`.
+ * `<markdown-origin>/#?editor=disabled&url=<frame-origin>/README.md` — spelled
+ * `hm=disabled` when falling back to the published markdown frame, which is
+ * the old app and only knows that name.
  */
 export function helpUrlFrom(config: HelpConfig, loc?: Location): string {
   const self = frameBaseUrl(config.frame, config.frameLabel, loc);
   const readme = `${self}/README.md`;
 
-  const viewer = config.viewer && config.viewerLabel
+  const ownViewer = config.viewer && config.viewerLabel
     ? frameBaseUrl(config.viewer, config.viewerLabel, loc)
-    : FALLBACK_MARKDOWN_ORIGIN;
+    : null;
+  const viewer = ownViewer ?? FALLBACK_MARKDOWN_ORIGIN;
 
   // Built with the hash-query setter rather than string concatenation, so the
   // encoding is the module's business and round-trips through its getters.
   return setHashParamsInUrl(new URL(`${viewer}/`), {
-    hm: "disabled",
+    [ownViewer ? HASH_KEY_EDITOR : HASH_KEY_EDITOR_LEGACY]: "disabled",
     url: readme,
   }).href;
 }

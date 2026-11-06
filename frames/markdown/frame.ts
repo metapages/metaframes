@@ -41,6 +41,9 @@ export const frame: FrameConfig = {
       "css",
       "bgColor",
       "editorWidth",
+      // How reachable the editor is. `hm` is the published name for the same
+      // thing and is still read, so both are declared.
+      "editor",
       "hm",
     ],
   },

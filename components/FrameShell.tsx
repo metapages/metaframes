@@ -3,9 +3,10 @@ import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { deleteHashParamFromUrl } from "@metapages/hash-query";
 import type { FrameOption, ToolbarItem } from "../lib/registry.ts";
 import { type HelpConfig, helpUrlFrom } from "../lib/help.ts";
-import { useHashParam, useHashParamBoolean } from "../lib/hash/useHashParam.ts";
+import { useHashParamBoolean } from "../lib/hash/useHashParam.ts";
+import { useEditorMode } from "../lib/hash/useEditorMode.ts";
 import { type HeaderAction, MainHeader } from "./MainHeader.tsx";
-import { PanelHeader } from "./PanelHeader.tsx";
+import { PanelColumn } from "./PanelColumn.tsx";
 import { OptionsPanel } from "./OptionsPanel.tsx";
 import { HelpPanel } from "./HelpPanel.tsx";
 import { IconList } from "./icons.tsx";
@@ -30,7 +31,11 @@ export interface FramePanel {
   label: string;
   icon: IconName;
   content: ComponentChildren;
-  /** CSS width of the panel column. Defaults to half the frame. */
+  /**
+   * CSS width of the panel column, until the viewer drags the split. Defaults
+   * to half the frame. The dragged width is remembered per viewer in
+   * localStorage and outranks this — see PanelColumn.tsx.
+   */
   width?: string;
 }
 
@@ -95,7 +100,9 @@ export interface FrameAction {
  *   editor writes `md`, the renderer reads it), so the two never need to know
  *   about each other.
  *
- * `hm` still decides how reachable the menu is, for embeds that want it gone:
+ * `editor` decides how reachable the menu is, so an external system can say
+ * whether the content is editable here at all (the published name was `hm`,
+ * still read — see lib/hash/useEditorMode.ts):
  *
  *   undefined | "invisible"  the open-menu button is transparent until
  *                            hovered, but always clickable
@@ -118,7 +125,7 @@ export function FrameShell(
     actions: frameActions = [],
   }: FrameShellProps,
 ): JSX.Element {
-  const [mode] = useHashParam("hm");
+  const mode = useEditorMode();
   // The menu's open state lives in the URL: a frame with no `edit` is just its
   // renderer, which is what an embed and a shared link should be.
   const [edit, setEdit] = useHashParamBoolean(HASH_KEY_EDIT);
@@ -237,16 +244,18 @@ export function FrameShell(
         <div class="relative min-h-0 min-w-0 flex-1">{children}</div>
 
         {panel && (
-          <aside
-            // max-width, because a panel's width is configuration (the
-            // markdown editor's `editorWidth` defaults to 80ch) and must not
-            // be able to crowd the renderer out of a narrow frame.
-            class="flex min-h-0 max-w-[70%] shrink-0 flex-col border-l border-line bg-surface-2"
-            style={{ width: panel.width ?? "50%" }}
+          <PanelColumn
+            // Keyed, so each panel owns its own remembered width rather than
+            // inheriting the last one's.
+            key={panel.key}
+            frame={help.frame}
+            panelKey={panel.key}
+            label={panel.label}
+            declaredWidth={panel.width}
+            onClose={() => setChosen(null)}
           >
-            <PanelHeader title={panel.label} onClose={() => setChosen(null)} />
-            <div class="min-h-0 flex-1 overflow-y-auto">{panel.content}</div>
-          </aside>
+            {panel.content}
+          </PanelColumn>
         )}
 
         {chromeAllowed && !edit && (
@@ -257,7 +266,7 @@ export function FrameShell(
             title="Show menu"
             // Transparent but clickable by default: the chrome should not
             // intrude on an embedded frame, while staying reachable.
-            // `hm=visible` opts into drawing it always.
+            // `editor=visible` opts into drawing it always.
             class={`absolute right-1 top-1 z-10 flex items-center justify-center rounded-control bg-paper/80 p-1.5 text-ink-2 transition-opacity duration-150 hover:bg-surface-2 hover:text-ink focus-visible:opacity-100 ${
               mode === "visible" ? "" : "opacity-0 hover:opacity-100"
             }`}

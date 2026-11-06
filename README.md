@@ -62,7 +62,8 @@ The point of the monorepo. Most of a metaframe used to be these:
 
 | | |
 |---|---|
-| [`components/FrameShell.tsx`](./components/FrameShell.tsx) | Main / Options / Help tabs, the `hm` chrome modes, copy-URL button. Tabs mount on first use and stay mounted. |
+| [`components/FrameShell.tsx`](./components/FrameShell.tsx) | Main / Options / Help tabs, the `editor` chrome modes, copy-URL button. Tabs mount on first use and stay mounted. |
+| [`components/PanelColumn.tsx`](./components/PanelColumn.tsx) | the panel beside the renderer and the handle that resizes the split, remembered per viewer in `localStorage` |
 | [`components/OptionsPanel.tsx`](./components/OptionsPanel.tsx) | the settings panel, generated from a frame's `FrameOption[]`. Fields share one `options` hash param; a field marked `hashParam` gets its own top-level param instead, for values that are part of what the frame *is* (molstar's `pdbId`) rather than how it looks |
 | [`lib/hash/useHashParam.ts`](./lib/hash/useHashParam.ts) | Preact hooks over `@metapages/hash-query`, wire-compatible with every published URL |
 | [`lib/metaframe/useMetaframe.ts`](./lib/metaframe/useMetaframe.ts) | the metaframe postMessage protocol as hooks: inputs, outputs |
@@ -117,13 +118,40 @@ markdown). The header then holds **one** selection: panels behave like tabs,
 because two lit buttons read as two independent toggles. Plain actions (copy,
 links) never render as selected.
 
-`hm` still decides how reachable the menu is, and keeps its published meaning:
+### `editor` — whether the content is editable here
+
+`editor` decides how reachable the menu is, which is the same question as
+whether this frame's content can be edited at all. It is what an embedding
+system sets to answer that, and it keeps the vocabulary of `hm`, the name it
+was published under:
 
 | value | behaviour |
 |---|---|
 | absent / `invisible` | the open-menu button is transparent until hovered, but always clickable |
 | `visible` | the open-menu button is always drawn |
-| `disabled` | no menu and no button, ever |
+| `disabled` | no menu and no button, ever — the content is read-only here |
+
+`hm` is **still read**, and forever: every metaframe deployed so far writes it,
+and the help convention all of them embed is
+`https://markdown.mtfm.io/#?hm=disabled&url=…/README.md`, which lands here the
+moment this deployment takes over that host. `editor` wins when both are
+present, and `editor` is the only one written. `true`/`false` are accepted as
+synonyms for `visible`/`disabled`, because that is what a caller means by "is
+this editable". See [`lib/hash/useEditorMode.ts`](./lib/hash/useEditorMode.ts).
+
+### The split is the viewer's, not the document's
+
+The panel column is resizable: drag the handle on its left edge, or focus it
+and use the arrow keys (shift for a coarser step, Home to reset — double-click
+does the same). The width is stored in `localStorage` under
+`mtfm:panel-width:<frame>:<panel>`, one entry per frame *and* panel, so an
+editor and a settings form keep their own widths.
+
+It is deliberately **not** a hash param. How wide someone likes their editor is
+not part of the document, and must not travel in a shared URL. A frame may
+still declare a starting width (markdown's `editorWidth`, default `80ch`); the
+first drag replaces it for that viewer, and both are clamped so neither side of
+the split can be squeezed below 160px.
 
 ## Hash params
 

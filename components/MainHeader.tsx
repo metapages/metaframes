@@ -36,15 +36,18 @@ const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
  *
  * Actions come from configuration (a frame's `toolbar`, plus the panels the
  * shell provides), so a frame never writes a header.
+ *
+ * The panel actions are a **selection**: one of them is always the open one,
+ * and clicking it again does nothing. The close button is the only thing here
+ * that shuts anything — it closes the menu entirely.
  */
 export function MainHeader(
-  { wordmark, title, actions, shownPanel, onWordmarkClick, onClose }: {
+  { wordmark, title, actions, shownPanel, onClose }: {
     wordmark: string;
     /** Full frame name, shown as the wordmark's tooltip. */
     title: string;
     actions: HeaderAction[];
-    shownPanel: string | null;
-    onWordmarkClick: () => void;
+    shownPanel: string | undefined;
     onClose: () => void;
   },
 ): JSX.Element {
@@ -166,14 +169,14 @@ export function MainHeader(
             </div>
           )
           : (
-            <button
-              type="button"
-              onClick={onWordmarkClick}
+            // A label, not a button: it used to close the open panel, and a
+            // panel is no longer something that closes.
+            <span
               title={title}
-              class="mx-3 flex h-10 shrink-0 items-center font-mono text-sm font-medium tracking-[0.04em] text-ink-2 hover:bg-surface-2 hover:text-ink"
+              class="mx-3 flex h-10 shrink-0 select-none items-center font-mono text-sm font-medium tracking-[0.04em] text-ink-2"
             >
               {wordmark}
-            </button>
+            </span>
           )}
       </div>
 

@@ -99,12 +99,15 @@ bugs:
   return <div ref={setRoot} />;
   ```
 
-The header holds **one** selection. Panels behave like tabs — opening one
-closes the last — because two lit buttons read as two independent toggles.
-Plain actions (copy, links) never render as selected. A panel may persist its
-open state in a hash param (`edit` for the markdown editor) so a shared URL
-reopens it; state travels between a panel and the renderer through hash params
-only, so neither needs to know about the other.
+The header holds **one** selection, and always one. Panels behave like tabs —
+opening one closes the last — because two lit buttons read as two independent
+toggles. The buttons are a selection rather than toggles: clicking the open
+panel's own button does nothing, and no panel has a close button. Every frame
+has at least settings and help, so there is always something to be looking at,
+and the menu's close button already says the thing "no panel" would. Plain
+actions (copy, links) never render as selected. State travels between a panel
+and the renderer through hash params only, so neither needs to know about the
+other.
 
 ### `edit` — the menu
 
@@ -115,9 +118,9 @@ shared link should be, which is why the copy action strips `edit` from the URL
 it puts on the clipboard while leaving the page you are working in alone.
 
 Opening the menu lands on the frame's first declared panel (the editor, for
-markdown). The header then holds **one** selection: panels behave like tabs,
-because two lit buttons read as two independent toggles. Plain actions (copy,
-links) never render as selected.
+markdown), or on the first panel the shell provides for a frame that declares
+none — so `edit=true` always shows something. Closing the menu is the only way
+back to the bare renderer: the panel column itself never empties.
 
 ### `editor` — whether the content is editable here
 

@@ -69,7 +69,6 @@ export interface PanelColumnProps {
    * It is the starting point, not the law: the viewer's own drag outranks it.
    */
   declaredWidth?: string;
-  onClose: () => void;
   children: ComponentChildren;
 }
 
@@ -84,8 +83,7 @@ export interface PanelColumnProps {
  * editor, the settings, the help — opens where the split was left.
  */
 export function PanelColumn(
-  { frame, panelKey, label, declaredWidth, onClose, children }:
-    PanelColumnProps,
+  { frame, panelKey, label, declaredWidth, children }: PanelColumnProps,
 ): JSX.Element {
   const asideRef = useRef<HTMLElement>(null);
   /**
@@ -194,7 +192,7 @@ export function PanelColumn(
           dragging ? "bg-accent/60" : ""
         }`}
       />
-      <PanelHeader title={label} onClose={onClose} />
+      <PanelHeader title={label} />
       <div class="min-h-0 flex-1 overflow-y-auto">{children}</div>
     </aside>
   );

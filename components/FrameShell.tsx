@@ -94,8 +94,12 @@ export interface FrameAction {
  *   Branching the tree on chrome state makes Preact recreate the renderer's
  *   DOM, which silently empties any frame that writes its own HTML.
  *
- * - The panel column holds exactly one panel at a time, like tabs. Two panels
- *   open at once reads as two independent toggles, which is what it is not.
+ * - The panel column holds exactly one panel at a time, like tabs — and
+ *   always one. The header buttons are a selection, not toggles: clicking the
+ *   open panel's button leaves it open, and no panel has a close button.
+ *   Every frame has at least settings and help, so there is always something
+ *   to be looking at, and "no panel" would be a second way of saying what the
+ *   menu's own close button already says.
  *
  * - State between a panel and the renderer travels through hash params (the
  *   editor writes `md`, the renderer reads it), so the two never need to know
@@ -188,18 +192,25 @@ export function FrameShell(
     return list;
   }, [panels, settingsOptions, optionsHashKey, help, mounted]);
 
-  /** Opening the menu lands on the frame's own first panel — its editor. */
-  const defaultPanelKey = panels[0]?.key ?? null;
+  /**
+   * Opening the menu lands on the frame's own first panel — its editor — or on
+   * the first the shell provides for a frame that declares none, which is why
+   * `edit=true` on any frame always shows something.
+   */
+  const defaultPanelKey = allPanels[0]?.key;
 
-  // `undefined` means "nothing chosen yet, use the default"; `null` means the
-  // user deliberately closed the panel and wants only the renderer.
-  const [chosen, setChosen] = useState<string | null | undefined>(undefined);
+  /** Which panel the viewer picked; `undefined` means "the default one". */
+  const [chosen, setChosen] = useState<string | undefined>(undefined);
   useEffect(() => {
     // Closing the menu forgets the choice, so reopening starts fresh.
     if (!edit) setChosen(undefined);
   }, [edit]);
 
-  const activeKey = chosen === undefined ? defaultPanelKey : chosen;
+  // Never a key that is not on offer: a frame's panels can change with its
+  // state, and a dangling choice would show an empty column.
+  const activeKey = allPanels.some((p) => p.key === chosen)
+    ? chosen
+    : defaultPanelKey;
 
   /** Links declared in a frame's config. Not selectable — they just act. */
   const toolbarActions = useMemo<HeaderAction[]>(
@@ -221,7 +232,8 @@ export function FrameShell(
       label: panel.label,
       icon: panel.icon,
       selectable: true,
-      onClick: () => setChosen(activeKey === panel.key ? null : panel.key),
+      // A selection, not a toggle: the open panel's own button is a no-op.
+      onClick: () => setChosen(panel.key),
     })),
     ...toolbarActions,
     {
@@ -230,7 +242,7 @@ export function FrameShell(
       icon: "copy",
       onClick: copyUrl,
     },
-  ], [frameActions, allPanels, toolbarActions, activeKey, copyUrl]);
+  ], [frameActions, allPanels, toolbarActions, copyUrl]);
 
   const chromeAllowed = mounted && mode !== "disabled";
   const chromeVisible = chromeAllowed && edit;
@@ -248,7 +260,6 @@ export function FrameShell(
           title={title}
           actions={actions}
           shownPanel={activeKey}
-          onWordmarkClick={() => setChosen(null)}
           onClose={() => setEdit(undefined)}
         />
       )}
@@ -266,7 +277,6 @@ export function FrameShell(
             panelKey={panel.key}
             label={panel.label}
             declaredWidth={panel.width}
-            onClose={() => setChosen(null)}
           >
             {panel.content}
           </PanelColumn>

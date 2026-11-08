@@ -1,15 +1,16 @@
 import type { ComponentChildren, JSX } from "preact";
-import { IconX } from "./icons.tsx";
 
 /**
  * The bar at the top of an open panel, following the framejs.io editor: a mono
- * uppercase eyebrow title on the left, the panel's own controls centred, and a
- * close affordance on the right.
+ * uppercase eyebrow title on the left and the panel's own controls centred.
+ *
+ * There is no close affordance, because a panel is never closed: the column
+ * always holds exactly one, and the menu's own close button is what puts the
+ * frame back to just its renderer. See FrameShell.tsx.
  */
 export function PanelHeader(
-  { title, onClose, children }: {
+  { title, children }: {
     title: string;
-    onClose: () => void;
     children?: ComponentChildren;
   },
 ): JSX.Element {
@@ -19,15 +20,6 @@ export function PanelHeader(
       <div class="flex h-full flex-1 items-center justify-center gap-4">
         {children}
       </div>
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close panel"
-        title="Close panel"
-        class="flex items-center justify-center rounded-control p-1 text-ink-2 hover:bg-line-strong hover:text-ink"
-      >
-        <IconX size="14px" />
-      </button>
     </div>
   );
 }

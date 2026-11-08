@@ -37,11 +37,14 @@ grey := "\\e[90m"
     deno install --allow-scripts
 
 # Run the dev server: every frame on a path and on a *.localhost subdomain
-dev: install _mkcert
+@dev: install _mkcert
     deno task dev
 
 # Format, lint, type-check and unit-test
-@check:
+# Depends on install: `deno check` resolves imports against node_modules
+# (nodeModulesDir: manual), and `just deploy` runs check before build — so on a
+# fresh clone, CI included, this is the first recipe that needs the deps.
+@check: install
     deno fmt --check .
     deno lint .
     deno check .
@@ -97,7 +100,7 @@ dev: install _mkcert
 # Chrome rejects it with ERR_CERT_COMMON_NAME_INVALID: a wildcard is not valid
 # directly under a single-label top-level domain. The cert is regenerated when
 # a new frame adds a hostname it does not yet cover.
-@_mkcert:
+_mkcert:
     #!/usr/bin/env bash
     set -euo pipefail
     if ! command -v mkcert &> /dev/null; then echo -e "💥 {{ bold }}mkcert{{ normal }} is not installed: https://github.com/FiloSottile/mkcert"; exit 1; fi

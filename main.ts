@@ -80,8 +80,10 @@ app.use(async (ctx) => {
   const assets = (globalThis as { __CF_ASSETS?: { fetch: typeof fetch } })
     .__CF_ASSETS;
   const path = ctx.url.pathname;
-  const served = path.endsWith("/metaframe.json") ||
-    path.endsWith("/README.md");
+  // Only the frame's *own* two documents are routes. A deeper path that ends
+  // the same way is an ordinary static file and must reach the assets layer —
+  // mediapipe ships one metaframe.json per pipe, at /mediapipe/pipe/<p>/.
+  const served = /^\/[^/]+\/(metaframe\.json|README\.md)$/.test(path);
   if (assets && !served && /\.[^/.]+$/.test(path)) {
     const res = await assets.fetch(new Request(ctx.url, ctx.req));
     // Copied, not returned as-is: the assets layer hands back immutable

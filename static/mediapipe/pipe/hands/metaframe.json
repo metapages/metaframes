@@ -1,0 +1,29 @@
+{
+  "version": "1",
+  "metadata": {
+    "name": "Mediapipe Hands",
+    "description": "Detects hands in a video stream. Source: https://codepen.io/mediapipe-preview/pen/gOKBGPN",
+    "tags": [
+      "mediapipe",
+      "hands"
+    ]
+  },
+  "outputs": {
+    "landmarks": {
+      "type": "application/json"
+    },
+    "worldLandmarks": {
+      "type": "application/json"
+    },
+    "handednesses": {
+      "type": "application/json"
+    },
+    "handedness": {
+      "type": "application/json"
+    },
+    "timestamp": {
+      "type": "number"
+    }
+  },
+  "allow": "cross-origin-isolated;fullscreen;camera"
+}

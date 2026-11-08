@@ -1,0 +1,47 @@
+{
+  "version": "1",
+  "metadata": {
+    "name": "Mediapipe Holistic",
+    "description": "Detects pose, hands, and face landmarks in a video stream using holistic landmarker",
+    "tags": [
+      "mediapipe",
+      "holistic",
+      "pose",
+      "hands",
+      "face"
+    ]
+  },
+  "outputs": {
+    "faceLandmarks": {
+      "type": "application/json"
+    },
+    "faceBlendshapes": {
+      "type": "application/json"
+    },
+    "poseLandmarks": {
+      "type": "application/json"
+    },
+    "poseWorldLandmarks": {
+      "type": "application/json"
+    },
+    "poseSegmentationMasks": {
+      "type": "application/json"
+    },
+    "leftHandLandmarks": {
+      "type": "application/json"
+    },
+    "leftHandWorldLandmarks": {
+      "type": "application/json"
+    },
+    "rightHandLandmarks": {
+      "type": "application/json"
+    },
+    "rightHandWorldLandmarks": {
+      "type": "application/json"
+    },
+    "timestamp": {
+      "type": "number"
+    }
+  },
+  "allow": "cross-origin-isolated;fullscreen;camera"
+}

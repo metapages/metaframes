@@ -1,0 +1,28 @@
+{
+  "version": "1",
+  "metadata": {
+    "name": "Mediapipe Pose and Hands",
+    "description": "Detects hands landmarks transformed by pose detection in a video stream",
+    "tags": [
+      "mediapipe",
+      "hands",
+      "pose",
+      "body"
+    ]
+  },
+  "outputs": {
+    "hands": {
+      "type": "application/json"
+    },
+    "pose": {
+      "type": "application/json"
+    },
+    "handsTransformedWithPose": {
+      "type": "application/json"
+    },
+    "timestamp": {
+      "type": "number"
+    }
+  },
+  "allow": "cross-origin-isolated;fullscreen;camera"
+}

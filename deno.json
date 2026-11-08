@@ -26,7 +26,13 @@
     "**/_fresh/*",
     "node_modules",
     ".wrangler",
-    "server.js"
+    "server.js",
+    // ./static is served verbatim and some of it is vendored browser code
+    // (mediapipe's pipe scripts). `deno check` would follow their CDN imports
+    // and make a type check need the network; lint reports things that are not
+    // true of a file that only ever runs in a browser, like `no-window`; and
+    // reformatting vendored code makes the next upstream diff unreadable.
+    "static"
   ],
   "imports": {
     "@/": "./",

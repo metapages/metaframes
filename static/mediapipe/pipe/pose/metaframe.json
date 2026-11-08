@@ -1,0 +1,27 @@
+{
+  "version": "1",
+  "metadata": {
+    "name": "Mediapipe Pose",
+    "description": "Detects body pose in a video stream using MediaPipe pose detection",
+    "tags": [
+      "mediapipe",
+      "pose",
+      "body"
+    ]
+  },
+  "outputs": {
+    "landmarks": {
+      "type": "application/json"
+    },
+    "worldLandmarks": {
+      "type": "application/json"
+    },
+    "segmentationMasks": {
+      "type": "application/json"
+    },
+    "timestamp": {
+      "type": "number"
+    }
+  },
+  "allow": "cross-origin-isolated;fullscreen;camera"
+}

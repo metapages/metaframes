@@ -60,6 +60,38 @@ app.use(define.middleware(async (ctx) => {
   return res;
 }));
 
+/**
+ * Static files for the subdomain URL form, on Cloudflare.
+ *
+ * The assets layer answers static files before the Worker runs — but only for
+ * the URL as it arrived. `markdown.mtfm.io/readme-images/x.png` becomes
+ * `/markdown/readme-images/x.png` *inside* the Worker, a path the assets layer
+ * never saw, and `staticFiles()` below cannot serve it in workerd: its
+ * production cache opens files with Deno.open. Without this, a rewritten
+ * request for a file that exists is a 500. The binding arrives via server.js.
+ *
+ * Ahead of staticFiles() because that is what throws. Only for paths with a
+ * file extension, minus the two served as routes further down: a page has no
+ * extension, and an assets lookup certain to miss should not cost every page
+ * view. A miss here means the file is not in _fresh/client at all, so
+ * staticFiles() will not find it either and nothing opens a file.
+ */
+app.use(async (ctx) => {
+  const assets = (globalThis as { __CF_ASSETS?: { fetch: typeof fetch } })
+    .__CF_ASSETS;
+  const path = ctx.url.pathname;
+  const served = path.endsWith("/metaframe.json") ||
+    path.endsWith("/README.md");
+  if (assets && !served && /\.[^/.]+$/.test(path)) {
+    const res = await assets.fetch(new Request(ctx.url, ctx.req));
+    // Copied, not returned as-is: the assets layer hands back immutable
+    // headers, and the CORS and per-frame-header middlewares both write to
+    // them — "Can't modify immutable headers" is a 500.
+    if (res.status !== 404) return new Response(res.body, res);
+  }
+  return ctx.next();
+});
+
 app.use(staticFiles());
 
 /** The frame's public definition, read by the embedding metapage. */

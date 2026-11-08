@@ -1,19 +1,29 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "metaframes",
-  // Fresh's build emits this already shaped as { fetch }. The subdomain ->
-  // path rewrite lives in main.ts (App.handler override), so dev and
-  // production share one implementation and no wrapper entry is needed.
-  "main": "./_fresh/server.js",
+  // A thin wrapper around Fresh's generated ./_fresh/server.js: the only thing
+  // it adds is handing the assets binding below to the app. See server.js.
+  "main": "./server.js",
   "compatibility_date": "2025-10-01",
   "compatibility_flags": ["nodejs_compat"],
   // Fresh copies ./static into _fresh/client. Cloudflare's assets layer answers
   // these before the Worker runs, which also means the Worker cannot serve
   // static files itself: Fresh's production build cache uses Deno.open.
-  "assets": { "directory": "./_fresh/client" },
-  "routes": [
-    { "pattern": "mtfm.io/*", "zone_name": "mtfm.io" },
-    { "pattern": "*.mtfm.io/*", "zone_name": "mtfm.io" }
-  ],
+  // The binding lets the Worker ask the assets layer for a path the layer
+  // never saw, which is what a rewritten subdomain request is.
+  "assets": { "directory": "./_fresh/client", "binding": "ASSETS" },
+  // Served on <name>.<account>.workers.dev until a frame is ready to take over
+  // its published hostname.
+  "workers_dev": true,
+  // DELIBERATELY NOT ENABLED YET. A `*.mtfm.io/*` route intercepts EVERY frame
+  // subdomain in the zone at the edge, including the ~26 not migrated here
+  // (markdown.mtfm.io is live on Deno Deploy today; ffmpeg.mtfm.io answers
+  // through Cloudflare), so turning it on is the production cutover, not a
+  // deploy step. Cut frames over one hostname at a time instead:
+  //
+  // "routes": [
+  //   { "pattern": "markdown.mtfm.io/*", "zone_name": "mtfm.io" },
+  //   { "pattern": "echo.mtfm.io/*", "zone_name": "mtfm.io" }
+  // ],
   "observability": { "enabled": true }
 }

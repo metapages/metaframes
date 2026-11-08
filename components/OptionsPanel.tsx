@@ -11,6 +11,7 @@ import {
   type HashParamField,
   useHashParamSet,
 } from "../lib/hash/useHashParams.ts";
+import { IconCaretDown } from "./icons.tsx";
 
 export type OptionValues = Record<
   string,
@@ -299,19 +300,29 @@ function OptionInput(
 
   if (option.type === "option") {
     return (
-      <select
-        id={id}
-        name={option.name}
-        class="field max-w-xs"
-        value={value === undefined ? "" : String(value)}
-        onChange={(e) => onChange(option.name, e.currentTarget.value)}
-      >
-        {option.options?.map((choice) => {
-          const value = typeof choice === "string" ? choice : choice.value;
-          const label = typeof choice === "string" ? choice : choice.label;
-          return <option key={value} value={value}>{label}</option>;
-        })}
-      </select>
+      /* The caret is ours, not the browser's: Chrome draws the native one hard
+         against the border and ignores padding-right, so there is no way to
+         give it room without taking it over. `appearance-none` also stops the
+         platform widget from overriding the field's own border and radius. */
+      <div class="relative max-w-xs">
+        <select
+          id={id}
+          name={option.name}
+          class="field appearance-none pr-9"
+          value={value === undefined ? "" : String(value)}
+          onChange={(e) => onChange(option.name, e.currentTarget.value)}
+        >
+          {option.options?.map((choice) => {
+            const value = typeof choice === "string" ? choice : choice.value;
+            const label = typeof choice === "string" ? choice : choice.label;
+            return <option key={value} value={value}>{label}</option>;
+          })}
+        </select>
+        <IconCaretDown
+          size="0.875em"
+          class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-2"
+        />
+      </div>
     );
   }
 

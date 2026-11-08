@@ -267,7 +267,14 @@ export function OptionsPanel(
           ))}
         </div>
       </div>
-      <div class="flex shrink-0 items-center gap-2 border-t border-line bg-surface-2 px-6 py-3">
+      {
+        /* Right-aligned, with Apply last: the primary action sits where the
+          eye ends up, in the corner nearest the scrollbar it follows down. */
+      }
+      <div class="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-surface-2 px-6 py-3">
+        <button type="button" onClick={reset} class="btn btn-secondary">
+          Reset to defaults
+        </button>
         <button
           type="button"
           onClick={apply}
@@ -275,9 +282,6 @@ export function OptionsPanel(
           class="btn btn-primary"
         >
           Apply
-        </button>
-        <button type="button" onClick={reset} class="btn btn-secondary">
-          Reset to defaults
         </button>
       </div>
     </div>

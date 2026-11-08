@@ -65,13 +65,12 @@ The only hard deadline is Deno Deploy. Everything else is on GitHub Pages or
 Cloudflare Pages and has no clock on it, so Deno Deploy frames come first.
 
 Done: markdown (was metaframe-markdown-v2), molstar, pyodide (was
-metaframe-py-NEW), echo.
+metaframe-py-NEW), echo, mediapipe.
 
 Remaining on Deno Deploy, smallest first:
 
 | repo | shape |
 |---|---|
-| mediapipe | Fresh 1; serves per-pipe static bundles with `Deno.readTextFile` |
 | spells-and-effects | Fresh 1; same `[...assets].ts` shape as mediapipe |
 | metaframe-aws-s3-explorer | a vendored upstream fork + a thin static server |
 | metaframe-mermaid | Gen 3 client/ + server/; forked from metaframe-js, README is stale |

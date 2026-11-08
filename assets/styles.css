@@ -89,8 +89,12 @@
 }
 
 /* --- Palette: dark ------------------------------------------------------- */
-/* Metaframes are embedded in a parent metapage that controls the surrounding
-   look, so the frames follow the viewer's theme rather than pinning light. */
+/* Only when asked for. `data-theme` is the switch: absent follows the device,
+   and either explicit value pins the palette. A *frame* pins light by default
+   (lib/hash/useColorScheme.ts) because it is transparent and has to be legible
+   against the page embedding it rather than against the viewer's device
+   setting; the gallery and other site pages, which paint their own ground,
+   follow the device. The "Color scheme" setting chooses per frame. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --paper: #131311;
@@ -171,7 +175,13 @@
 
 /* --- Base ---------------------------------------------------------------- */
 body {
-  background: var(--paper);
+  /* Transparent, not --paper. A metaframe is embedded in a metapage that owns
+     the surrounding look, and an opaque ground paints over it — every v1
+     metaframe set `background: none transparent` on the body for this reason,
+     and so did metaframe-markdown-v2's renderer. Pages that are not a frame
+     (the gallery, the mediapipe index) paint `bg-paper` on their own root, and
+     a frame that wants an opaque ground sets the `bgColor` hash param. */
+  background: transparent;
   color: var(--ink);
   font-family: var(--font-sans);
   margin: 0;

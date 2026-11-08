@@ -67,6 +67,37 @@ Add a link that will make the site download markdown content from another locati
 See below for a code example
 
 
+## Settings
+
+Everything in the settings panel is stored in the URL, so a configured frame is
+shareable and embeddable exactly as it stands.
+
+| Setting | Hash param | Notes |
+|---|---|---|
+| Mermaid theme | `options.mermaidTheme` | `default`, `neutral`, `dark`, `forest`, `base`. Diagrams only — it does not change the frame. |
+| Edit button | `editor` | `visible`, `invisible` (default: transparent until hovered), `disabled`. `hm` is the published alias and still works. |
+| Color scheme | `options.theme` | `light` (default), `vs-dark`, `system`. |
+| Default background color | `bgColor` | Any CSS colour. Empty leaves the frame **transparent**, so whatever embeds it shows through. |
+| Minimal header | `minimalheader` | Hides the header's buttons, leaving the wordmark and close. |
+| CSS URLs | `modules` | A JSON array of stylesheet URLs, one per line in the panel, loaded into the page. |
+
+Two more styling params have no field in the panel:
+
+- `css` — base64 of either one stylesheet URL or a block of CSS text. This is
+  what replaced `dm=slide`: rather than the renderer carrying a second
+  hard-coded layout, the URL carries whatever styling it wants.
+- `options.h` — CSS classes added to every `h1`/`h2`/`h3`. Never had a field.
+
+### Background and color scheme
+
+The frame is transparent by default and its palette is **light** by default,
+rather than following the viewer's device. The two go together: a transparent
+frame has to be legible against the page embedding it, and that page (for
+example app.metapage.io) is usually light whatever the viewer's device says.
+Set `Color scheme` to `System` when the embedding page follows the device too,
+or give the frame its own opaque ground with `Default background color`.
+
+
 ## Dynamically add content
 
 

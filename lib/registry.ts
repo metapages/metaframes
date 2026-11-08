@@ -35,8 +35,8 @@ export type FrameOptionChoice = string | { value: string; label: string };
 export interface FrameOption {
   name: string;
   displayName: string;
-  type?: "string" | "boolean" | "option" | "number";
-  default?: string | boolean | number;
+  type?: "string" | "boolean" | "option" | "number" | "strings";
+  default?: string | boolean | number | string[];
   /**
    * One line under the label, for a setting whose consequence is not obvious
    * from its name.
@@ -47,9 +47,13 @@ export interface FrameOption {
   /** Extra fields revealed when a given choice is selected. */
   suboptions?: Record<string, FrameOption[]>;
   /** Return an error message, or undefined when valid. */
-  validator?: (value: string | boolean | number) => string | undefined;
+  validator?: (
+    value: string | boolean | number | string[],
+  ) => string | undefined;
   /** Transform the value before it is persisted. */
-  map?: (value: string | boolean | number) => string | boolean | number;
+  map?: (
+    value: string | boolean | number | string[],
+  ) => string | boolean | number | string[];
   /**
    * Store this field as its own top-level hash param (named `name`) instead of
    * inside the frame's `options` JSON.
@@ -154,4 +158,40 @@ export const FRAME_LIST: FrameMeta[] = Object.values(FRAMES).sort((a, b) =>
 export const FRAME_BY_HOST_LABEL: Record<string, string> = {};
 for (const frame of FRAME_LIST) {
   for (const label of frame.hosts) FRAME_BY_HOST_LABEL[label] = frame.name;
+}
+
+/**
+ * Hash params the shared shell reads on **every** frame: the settings in
+ * components/shellOptions.ts, plus the ones the shell owns outright — `edit`
+ * (the menu's open state), `editor` and its published alias `hm`, and the
+ * `options` blob the settings form writes into.
+ *
+ * Folded into each frame's served definition rather than repeated in every
+ * frame.ts. An embedding metapage only persists the params a frame declares,
+ * so a frame that forgot one would silently drop that setting on reload — and
+ * with most of the metaframes still to migrate, "remember to list the shell's
+ * params" is exactly the per-frame boilerplate this registry exists to delete.
+ */
+export const SHELL_HASH_PARAMS = [
+  "edit",
+  "editor",
+  "hm",
+  "options",
+  "bgColor",
+  "minimalheader",
+  "css",
+  "modules",
+];
+
+/** A frame's public definition, with the shell's own hash params folded in. */
+export function definitionOf(frame: FrameMeta): MetaframeDefinition {
+  return {
+    ...frame.definition,
+    hashParams: [
+      ...new Set([
+        ...(frame.definition.hashParams ?? []),
+        ...SHELL_HASH_PARAMS,
+      ]),
+    ],
+  };
 }

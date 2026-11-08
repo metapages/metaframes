@@ -31,20 +31,15 @@ export const frame: FrameConfig = {
       // Mermaid nodes can declare click handlers; the clicked text comes out here.
       click: { type: "string" },
     },
+    // Only this frame's own params. The shell's — `edit`, `editor`/`hm`,
+    // `options`, `bgColor`, `minimalheader`, `css`, `modules` — are folded in
+    // when the definition is served, for every frame at once
+    // (SHELL_HASH_PARAMS in lib/registry.ts).
     hashParams: [
       "md",
       "base64",
       "url",
-      "edit",
-      "options",
-      // Transient styling: restyles the render without touching the content.
-      "css",
-      "bgColor",
       "editorWidth",
-      // How reachable the editor is. `hm` is the published name for the same
-      // thing and is still read, so both are declared.
-      "editor",
-      "hm",
     ],
   },
   wordmark,

@@ -3,8 +3,13 @@ import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import { deleteHashParamFromUrl } from "@metapages/hash-query";
 import type { FrameOption, ToolbarItem } from "../lib/registry.ts";
 import { type HelpConfig, helpUrlFrom } from "../lib/help.ts";
-import { useHashParamBoolean } from "../lib/hash/useHashParam.ts";
+import { useHashParam, useHashParamBoolean } from "../lib/hash/useHashParam.ts";
 import { useEditorMode } from "../lib/hash/useEditorMode.ts";
+import {
+  useHashParamCss,
+  useHashParamCssUrls,
+} from "../lib/hash/useHashParamCss.ts";
+import { useHashParamColorScheme } from "../lib/hash/useColorScheme.ts";
 import { type HeaderAction, MainHeader } from "./MainHeader.tsx";
 import { PanelColumn } from "./PanelColumn.tsx";
 import { OptionsPanel } from "./OptionsPanel.tsx";
@@ -134,6 +139,20 @@ export function FrameShell(
   // The menu's open state lives in the URL: a frame with no `edit` is just its
   // renderer, which is what an embed and a shared link should be.
   const [edit, setEdit] = useHashParamBoolean(HASH_KEY_EDIT);
+  /**
+   * An opaque ground, when the frame wants one. Absent it stays transparent so
+   * the embedding metapage shows through — which is what every published
+   * metaframe did, and what assets/styles.css leaves the body as.
+   */
+  const [bgColor] = useHashParam("bgColor");
+  const [minimalHeader] = useHashParamBoolean("minimalheader");
+  /**
+   * Styling and palette from the URL, for every frame rather than per frame:
+   * a frame says what it renders, and the shell says how it is presented.
+   */
+  useHashParamCss();
+  useHashParamCssUrls();
+  useHashParamColorScheme(optionsHashKey);
   const [mounted, setMounted] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -253,12 +272,18 @@ export function FrameShell(
   return (
     // ONE tree. `children` below never changes position, so the frame's
     // renderer is never remounted by anything the chrome does.
-    <div class="flex h-dvh w-full flex-col bg-paper">
+    <div
+      // No background of its own: a metaframe is embedded, and an opaque
+      // ground paints over the page it sits in. `bgColor` opts into one.
+      class="flex h-dvh w-full flex-col"
+      style={bgColor ? { background: bgColor } : undefined}
+    >
       {chromeVisible && (
         <MainHeader
           wordmark={wordmark}
           title={title}
           actions={actions}
+          minimal={minimalHeader}
           shownPanel={activeKey}
           onClose={() => setEdit(undefined)}
         />

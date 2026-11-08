@@ -3,13 +3,20 @@ import {
   getHashParamFromWindow,
   getHashParamValueBooleanFromWindow,
   getHashParamValueFloatFromWindow,
+  getHashParamValueJsonFromWindow,
   setHashParamInWindow,
   setHashParamValueBooleanInWindow,
   setHashParamValueFloatInWindow,
+  setHashParamValueJsonInWindow,
 } from "@metapages/hash-query";
 
-/** How a field is encoded in the hash. */
-export type HashParamKind = "string" | "boolean" | "number";
+/**
+ * How a field is encoded in the hash.
+ *
+ * `strings` is a JSON array of strings — the shape the published editor used
+ * for its CSS URL list, kept so existing URLs keep working.
+ */
+export type HashParamKind = "string" | "boolean" | "number" | "strings";
 
 export interface HashParamField {
   name: string;
@@ -18,7 +25,7 @@ export interface HashParamField {
 
 export type HashParamValues = Record<
   string,
-  string | boolean | number | undefined
+  string | boolean | number | string[] | undefined
 >;
 
 const IS_BROWSER = typeof document !== "undefined";
@@ -30,6 +37,8 @@ function read(fields: HashParamField[]): HashParamValues {
       ? getHashParamValueBooleanFromWindow(name)
       : kind === "number"
       ? getHashParamValueFloatFromWindow(name)
+      : kind === "strings"
+      ? getHashParamValueJsonFromWindow<string[]>(name)
       : getHashParamFromWindow(name);
   }
   return values;
@@ -84,8 +93,14 @@ export function useHashParamSet(
       const value = next[name];
       // An empty value removes the param rather than writing a blank one, so
       // shared URLs stay free of noise.
-      const unset = value === undefined || value === "" || value === null;
-      if (kind === "boolean") {
+      const unset = value === undefined || value === "" || value === null ||
+        (Array.isArray(value) && value.length === 0);
+      if (kind === "strings") {
+        setHashParamValueJsonInWindow<string[] | undefined>(
+          name,
+          unset ? undefined : (value as string[]),
+        );
+      } else if (kind === "boolean") {
         setHashParamValueBooleanInWindow(
           name,
           unset || value === false ? undefined : true,

@@ -42,11 +42,18 @@ const capitalize = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
  * that shuts anything — it closes the menu entirely.
  */
 export function MainHeader(
-  { wordmark, title, actions, shownPanel, onClose }: {
+  { wordmark, title, actions, minimal, shownPanel, onClose }: {
     wordmark: string;
     /** Full frame name, shown as the wordmark's tooltip. */
     title: string;
     actions: HeaderAction[];
+    /**
+     * Draw nothing but the wordmark and close — the `minimalheader` hash
+     * param, for an embed that wants the editor reachable without the
+     * clutter. The published editor hid the close button along with the rest,
+     * which left the menu with no way out at all; this keeps it.
+     */
+    minimal?: boolean;
     shownPanel: string | undefined;
     onClose: () => void;
   },
@@ -78,6 +85,8 @@ export function MainHeader(
       globalThis.removeEventListener("keydown", onKey);
     };
   }, [menuOpen]);
+
+  const shown = minimal ? [] : actions;
 
   const iconButton = (action: HeaderAction) => {
     const Icon = ICONS[action.icon];
@@ -141,7 +150,7 @@ export function MainHeader(
           isNarrow ? "px-2" : ""
         }`}
       >
-        {isNarrow
+        {isNarrow && shown.length > 0
           ? (
             <div class="relative">
               <button
@@ -163,7 +172,7 @@ export function MainHeader(
                   onClick={(e) => e.stopPropagation()}
                   class="plate absolute left-0 top-10 z-30 min-w-44 py-1 shadow-lg"
                 >
-                  {actions.map(menuItem)}
+                  {shown.map(menuItem)}
                 </div>
               )}
             </div>
@@ -185,7 +194,7 @@ export function MainHeader(
           isNarrow ? "" : "border-l border-line"
         }`}
       >
-        {isNarrow ? null : actions.map(iconButton)}
+        {isNarrow ? null : shown.map(iconButton)}
         {iconButton({
           key: "close",
           label: "close",

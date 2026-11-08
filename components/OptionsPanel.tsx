@@ -15,7 +15,7 @@ import { IconCaretDown } from "./icons.tsx";
 
 export type OptionValues = Record<
   string,
-  string | boolean | number | undefined
+  string | boolean | number | string[] | undefined
 >;
 
 /**
@@ -59,9 +59,16 @@ function flatten(options: FrameOption[]): FrameOption[] {
 
 function coerce(
   option: FrameOption | undefined,
-  value: string | boolean | number,
-): string | boolean | number {
+  value: string | boolean | number | string[],
+): string | boolean | number | string[] {
   if (option?.map) return option.map(value);
+  if (option?.type === "strings") {
+    // One entry per line while editing, an array once stored. Whitespace is
+    // the separator because a URL cannot contain any.
+    return Array.isArray(value)
+      ? value
+      : String(value).split(/\s+/).filter(Boolean);
+  }
   if (option?.type === "boolean") {
     return value === true || value === "1" || value === "true";
   }
@@ -116,6 +123,8 @@ export function OptionsPanel(
           ? "boolean" as const
           : o.type === "number"
           ? "number" as const
+          : o.type === "strings"
+          ? "strings" as const
           : "string" as const,
       })),
     [all],
@@ -214,9 +223,13 @@ export function OptionsPanel(
         // Kept even when empty: an empty value means "remove this param".
         // So does the declared default — an absent param keeps a shared URL
         // free of settings nobody chose.
-        const absent = value === undefined || value === "" ||
-          (option.default !== undefined && value === option.default);
-        own[key] = absent ? undefined : coerce(option, value);
+        // Coerced first: a `strings` field typed empty is "" here and only
+        // becomes the empty array that means "remove" once coerced.
+        const next = value === undefined ? undefined : coerce(option, value);
+        const absent = next === undefined || next === "" ||
+          (Array.isArray(next) && next.length === 0) ||
+          (option.default !== undefined && next === option.default);
+        own[key] = absent ? undefined : next;
         continue;
       }
       if (value === undefined) continue;
@@ -292,11 +305,32 @@ export function OptionsPanel(
 function OptionInput(
   { option, value, onChange }: {
     option: FrameOption;
-    value: string | boolean | number | undefined;
+    value: string | boolean | number | string[] | undefined;
     onChange: (name: string, value: string | boolean) => void;
   },
 ) {
   const id = `option-${option.name}`;
+
+  if (option.type === "strings") {
+    // One per line, which is both how a list of URLs reads and how it is
+    // typed. The published editor used a modal and a table per entry; a
+    // textarea is the same data with nothing to click through.
+    return (
+      <textarea
+        id={id}
+        name={option.name}
+        rows={3}
+        spellcheck={false}
+        class="field max-w-xs resize-y font-mono text-sm"
+        value={Array.isArray(value)
+          ? value.join("\n")
+          : value === undefined
+          ? ""
+          : String(value)}
+        onInput={(e) => onChange(option.name, e.currentTarget.value)}
+      />
+    );
+  }
 
   if (option.type === "option") {
     return (

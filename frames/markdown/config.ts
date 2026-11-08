@@ -9,18 +9,24 @@ export const wordmark = "md";
 // `dm` ("display mode", with its "slide" presentation layout) was removed: the
 // `css` hash param restyles a document arbitrarily, so the renderer no longer
 // carries a second hard-coded layout. See lib/hash/useHashParamCss.ts.
+//
+// `options.theme` is NOT here: it is the frame's colour scheme, which the
+// shell contributes to every frame (components/shellOptions.ts). Mermaid's own
+// theme is `mermaidTheme`, so the two no longer collide — the published
+// renderer only ever used `theme` for the colour scheme.
+//
+// `options.h` ("heading CSS classes", applied by lib/markdown/plugins.ts) is
+// still honoured but has no field, which is also how it shipped: the published
+// settings panel never exposed it. The "CSS URLs" setting is the general form
+// of the same idea and does have one.
 export const options: FrameOption[] = [
   {
-    name: "theme",
+    name: "mermaidTheme",
     displayName: "Mermaid theme",
+    hint: "Applied to mermaid diagrams only, not to the frame itself.",
     type: "option",
     options: ["default", "neutral", "dark", "forest", "base"],
     default: "default",
-  },
-  {
-    name: "h",
-    displayName: "Heading CSS classes",
-    type: "string",
   },
 ];
 

@@ -1,6 +1,6 @@
 import { App, cors, staticFiles } from "fresh";
 import { define, type State } from "./utils.ts";
-import { FRAME_BY_HOST_LABEL, FRAMES } from "./lib/registry.ts";
+import { definitionOf, FRAME_BY_HOST_LABEL, FRAMES } from "./lib/registry.ts";
 import { rewriteRequestForHost } from "./lib/host.ts";
 import { prefixRelativeAssets } from "./lib/markdown/links.ts";
 
@@ -100,7 +100,7 @@ app.use(staticFiles());
 app.get("/:frame/metaframe.json", (ctx) => {
   const frame = FRAMES[ctx.params.frame];
   if (!frame) return ctx.next();
-  return Response.json(frame.definition);
+  return Response.json(definitionOf(frame));
 });
 
 /** The frame's help document, rendered in-app by the markdown frame. */

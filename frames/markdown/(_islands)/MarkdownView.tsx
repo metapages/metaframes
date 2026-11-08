@@ -9,7 +9,6 @@ import {
   useHashParamJson,
 } from "../../../lib/hash/useHashParam.ts";
 import { useMarkdown } from "../../../lib/markdown/useMarkdown.ts";
-import { useHashParamCss } from "../../../lib/hash/useHashParamCss.ts";
 import {
   headingClassPlugin,
   mermaidFencePlugin,
@@ -17,8 +16,11 @@ import {
 import { options, toolbar, wordmark } from "../config.ts";
 
 interface Options {
-  h?: string; // heading css classes
-  theme?: string; // mermaid theme
+  /** Heading CSS classes. No settings field; see config.ts. */
+  h?: string;
+  /** Mermaid's diagram theme — not the frame's colour scheme, which is
+   * `theme` and belongs to the shell. */
+  mermaidTheme?: string;
 }
 
 // deno-lint-ignore no-explicit-any
@@ -55,9 +57,8 @@ function renderMarkdown(source: string, options: Options): string {
 export function MarkdownView({ help }: { help: HelpConfig }) {
   const [markdown, setMarkdown] = useMarkdown();
   const [viewOptions] = useHashParamJson<Options>("options", {});
-  const [bgColor] = useHashParam("bgColor");
-  // Arbitrary styling from the URL, which is what replaced `dm=slide`.
-  useHashParamCss();
+  // `bgColor`, `css`, `modules` and the colour scheme are the shell's — they
+  // describe how any frame is presented, not what this one renders.
   const [editorWidth] = useHashParam("editorWidth", "80ch");
   // A ref *callback* into state, not useRef: the effect below writes HTML into
   // this node, so it has to re-run if the node is ever replaced. A plain ref
@@ -78,7 +79,7 @@ export function MarkdownView({ help }: { help: HelpConfig }) {
       );
     }
     if (root.querySelector(".mermaid")) {
-      ensureMermaid(viewOptions?.theme ?? "default")
+      ensureMermaid(viewOptions?.mermaidTheme ?? "default")
         .then((m) => m.run({ querySelector: ".mermaid" }).catch(() => {}))
         .catch(() => {});
     }
@@ -111,15 +112,15 @@ export function MarkdownView({ help }: { help: HelpConfig }) {
       toolbar={toolbar}
       panels={panels}
     >
+      {
+        /* No background: the rendered document is transparent so the metapage
+           embedding it shows through, the way the published renderer was. An
+           opaque ground is the shell's `bgColor` setting. */
+      }
       <div
-        class="h-full w-full bg-surface"
-        style={bgColor ? { background: bgColor } : undefined}
-      >
-        <div
-          ref={setRoot}
-          class="markdown-body h-full overflow-auto px-6 py-5"
-        />
-      </div>
+        ref={setRoot}
+        class="markdown-body h-full w-full overflow-auto px-6 py-5"
+      />
     </FrameShell>
   );
 }

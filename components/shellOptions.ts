@@ -35,4 +35,79 @@ export const SHELL_OPTIONS: FrameOption[] = [
     default: "invisible",
     hashParam: true,
   },
+  {
+    // `options.theme` is the published name and the published vocabulary —
+    // "vs-dark" is a Monaco theme id that leaked into the URL format years
+    // ago, and changing it now would silently reset every shared link.
+    name: "theme",
+    displayName: "Color scheme",
+    hint:
+      "Light by default rather than following the viewer's system setting: a " +
+      "frame is transparent, so it has to match the page it is embedded in, " +
+      "not the device. Pick System when that page follows the device too.",
+    type: "option",
+    options: [
+      { value: "light", label: "Light (default)" },
+      { value: "vs-dark", label: "Dark" },
+      { value: "system", label: "System" },
+    ],
+    default: "light",
+  },
+  {
+    name: "bgColor",
+    displayName: "Default background color",
+    hint: "Any CSS color, written without spaces. Empty leaves the frame " +
+      "transparent, so whatever it is embedded in shows through.",
+    type: "string",
+    hashParam: true,
+    /**
+     * `rgb(255, 0, 0)` -> `rgb(255,0,0)`: the same colour, and the one that
+     * survives the trip through the URL.
+     *
+     * A plain string hash param does not round-trip a space.
+     * @metapages/hash-query writes the value into `location.hash` verbatim,
+     * the browser percent-encodes the space on serialising the URL, and the
+     * getter hands back the escape rather than the space
+     * (`setHashParamInWindow("x", "light blue")` then
+     * `getHashParamFromWindow("x")` === `"light blue"` is false — it is
+     * `"light%20blue"`). metaframe-markdown-v2 had the same bug on the same
+     * field; it is the module's to fix, and switching this one param to the
+     * module's UriEncoded pair would throw on a published value containing a
+     * bare `%`, such as an `hsl()` with percentages.
+     *
+     * Dropping the space after a comma is safe for every CSS colour syntax:
+     * the comma-separated forms do not need it, and the space-separated form
+     * (`rgb(255 0 0 / 50%)`) has no commas — that one is caught by the
+     * validator below instead of silently doing nothing.
+     */
+    map: (value) =>
+      typeof value === "string" ? value.replace(/,\s+/g, ",") : value,
+    validator: (value) =>
+      typeof value === "string" && /\s/.test(value.replace(/,\s+/g, ","))
+        ? "Remove the spaces: a space in a hash param does not survive the URL."
+        : undefined,
+  },
+  {
+    name: "minimalheader",
+    displayName: "Minimal header",
+    // The published editor hid the close button along with the rest, which
+    // left no way out of the menu at all. Close stays.
+    hint: "Hides the header's buttons, leaving the wordmark and close. These " +
+      "settings are then only reachable by removing minimalheader from the " +
+      "URL.",
+    type: "boolean",
+    hashParam: true,
+  },
+  {
+    // `modules` is the published name: the list began life in a fork of
+    // metaframe-js, where the entries really were JS modules, and by the time
+    // it was only ever used for stylesheets the param was already in shared
+    // URLs. Entries may be bare URLs or whole `<link>` tags — both forms were
+    // published — see lib/hash/useHashParamCss.ts.
+    name: "modules",
+    displayName: "CSS URLs",
+    hint: "One stylesheet URL per line, loaded into the page.",
+    type: "strings",
+    hashParam: true,
+  },
 ];

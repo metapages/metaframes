@@ -4,3 +4,6 @@ node_modules/
 .wrangler/
 .env
 *.log
+
+# Copied from node_modules by `just _monaco`
+static/editor/vs/

@@ -1,0 +1,41 @@
+# Metaframe Editor — editor.mtfm.io
+
+> An embeddable code and text editor (Monaco, the engine behind VS Code) that is configured entirely by its URL. The document and every editor option are encoded in the URL hash, so one URL is a complete, shareable, embeddable editor. Drop it into any page with a single `<iframe>`: no install, no build step, no bundler, no account, no API key.
+
+The whole integration is one line:
+
+```html
+<iframe src="https://editor.mtfm.io/#?text=SGVsbG8lMkMlMjB3b3JsZCE=&amp;options=JTdCJTIybW9kZSUyMiUzQSUyMm1hcmtkb3duJTIyJTdE"
+        style="width:100%;height:400px;border:0"></iframe>
+```
+
+URL shape: `https://editor.mtfm.io/#?text=<ENCODED>&options=<ENCODED>`
+
+Both values use the same encoding — **`base64(uriEncode(string))`**:
+
+```js
+const encode = (s) => btoa(encodeURIComponent(s));
+
+const url = "https://editor.mtfm.io/#?text=" + encode("print('hi')")
+          + "&options=" + encode(JSON.stringify({ mode: "python", theme: "vs-dark" }));
+```
+
+Do not use bare `btoa(text)`. It throws on non-Latin1 characters and silently corrupts any text containing `%`. See llms-full.txt.
+
+## Docs
+
+- [llms-full.txt](https://editor.mtfm.io/llms-full.txt): Complete self-contained reference — encoding (JS + Python), every hash parameter, every option with defaults, all 90 language ids, iframe/React/metapage recipes, and the known gotchas. Read this one if you are wiring up an integration.
+- [README.md](https://editor.mtfm.io/README.md): Human-oriented guide, also rendered in the app's Help tab.
+- [metaframe.json](https://editor.mtfm.io/metaframe.json): Machine-readable manifest declaring the input/output pipes and the hash params this app reads.
+
+## Reference
+
+- Hash params read by this app: `text` (the document), `options` (JSON config), `hm` (menu visibility: `invisible` | `visible` | `disabled`). Nothing else is read; `button` and `menuhidden` appear in old examples and are no-ops here.
+- Options keys: `mode` (language id, default `json`), `theme` (`light` | `vs-dark`), `readOnly`, `autosend`, `saveloadinhash`, `wordWrap`, `hideLineNumbers`, `autoFocus`, `blockLocalEditorStateOverwrites`. All booleans default to `false`.
+- Live data: when embedded, the editor receives text on an input pipe and emits edits on an output pipe, both named `text` by default, over `postMessage`.
+
+## Source
+
+- [GitHub repository](https://github.com/metapages/metaframe-editor): Source, issues, release tags.
+- [Monaco editor](https://microsoft.github.io/monaco-editor/): The underlying editor; `mode` accepts any Monaco language id.
+- [What is a metaframe?](https://docs.metapage.io/docs/what-is-a-metaframe): The broader pattern — a URL-configured iframe that composes with others.

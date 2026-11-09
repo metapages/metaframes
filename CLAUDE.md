@@ -65,7 +65,7 @@ The only hard deadline is Deno Deploy. Everything else is on GitHub Pages or
 Cloudflare Pages and has no clock on it, so Deno Deploy frames come first.
 
 Done: markdown (was metaframe-markdown-v2), molstar, pyodide (was
-metaframe-py-NEW), echo, mediapipe.
+metaframe-py-NEW), echo, mediapipe, editor.
 
 Remaining on Deno Deploy, smallest first:
 

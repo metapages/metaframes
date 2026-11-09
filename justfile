@@ -37,7 +37,7 @@ grey := "\\e[90m"
     deno install --allow-scripts
 
 # Run the dev server: every frame on a path and on a *.localhost subdomain
-@dev: install _mkcert
+@dev: install _mkcert _monaco
     deno task dev
 
 # Format, lint, type-check and unit-test
@@ -51,7 +51,7 @@ grey := "\\e[90m"
     deno test -A lib/
 
 # Production build into ./_fresh
-@build: install
+@build: install _monaco
     deno task build
 
 # Serve the production build on Deno (static files work here, unlike workerd)
@@ -119,12 +119,36 @@ _mkcert:
     mkcert -cert-file .certs/localhost.pem -key-file .certs/localhost-key.pem localhost $HOSTS 127.0.0.1 ::1
     echo -e "  🔐 {{ green }}.certs/localhost.pem{{ normal }} covers localhost $HOSTS"
 
+# The editor frame serves Monaco from this deployment rather than from a CDN,
+# so a critical frame has no third-party runtime dependency and loads from the
+# Cloudflare edge. The published app loads it from cdn.jsdelivr.net, which is
+# one outage or one blocked network away from an editor that never appears.
+#
+# Copied from node_modules rather than committed: `deno install` already
+# fetches it, and 12 MB of minified vendor code in git would make every diff
+# and every clone worse. The stamp file carries the version, so bumping the
+# dependency replaces the copy instead of silently serving the old one.
+_monaco:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    SRC="node_modules/monaco-editor/min/vs"
+    DEST="static/editor/vs"
+    if [ ! -d "$SRC" ]; then echo -e "💥 {{ bold }}$SRC{{ normal }} missing — run 'just install'"; exit 1; fi
+    VERSION=$(deno eval 'console.log(JSON.parse(Deno.readTextFileSync("node_modules/monaco-editor/package.json")).version)')
+    STAMP="$DEST/.version"
+    if [ -f "$STAMP" ] && [ "$(cat "$STAMP")" = "$VERSION" ]; then exit 0; fi
+    rm -rf "$DEST"
+    mkdir -p "$(dirname "$DEST")"
+    cp -R "$SRC" "$DEST"
+    echo "$VERSION" > "$STAMP"
+    echo -e "  📝 {{ green }}$DEST{{ normal }} monaco-editor $VERSION"
+
 @_ensure_wrangler:
     if [ ! -f "{{ wrangler }}" ]; then deno install --allow-scripts npm:wrangler; fi
 
 # Delete generated files
 @clean:
-    rm -rf _fresh .wrangler
+    rm -rf _fresh .wrangler static/editor/vs
 
 # Delete generated files, dependencies and dev certs
 @clean-all: clean

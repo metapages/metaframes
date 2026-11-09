@@ -25,6 +25,30 @@ export interface HashParamDocument {
    * immediately and is NOT written back to the hash.
    */
   replace: (next: string) => void;
+  /**
+   * Write the current text to the hash now, whatever `persist` says. For a
+   * frame where committing is an explicit act — the editor's Save button —
+   * rather than a consequence of typing.
+   */
+  commit: (next?: string) => void;
+  /**
+   * What the hash itself holds, which is not the same as `value` once
+   * something has been typed. A frame that forwards its document onward reads
+   * this, so it reacts to the URL changing rather than to every keystroke.
+   */
+  stored: string | undefined;
+}
+
+export interface HashParamDocumentOptions {
+  /** Milliseconds of quiet before an edit reaches the hash. */
+  debounceMs?: number;
+  /**
+   * Whether typing reaches the hash at all. False makes the hash the
+   * document's starting point rather than its running state, which is what an
+   * embed wants: the URL it was given stays the URL it was given, and only
+   * `commit` changes it.
+   */
+  persist?: boolean;
 }
 
 /**
@@ -43,8 +67,9 @@ export interface HashParamDocument {
  */
 export function useHashParamDocument(
   key: string,
-  debounceMs: number = DOCUMENT_COMMIT_DEBOUNCE_MS,
+  options: HashParamDocumentOptions = {},
 ): HashParamDocument {
+  const { debounceMs = DOCUMENT_COMMIT_DEBOUNCE_MS, persist = true } = options;
   const [stored, setStored] = useHashParamBase64(key);
   const [value, setValue] = useState(stored);
 
@@ -56,15 +81,28 @@ export function useHashParamDocument(
     undefined,
   );
 
+  /** The current text, for a `commit()` that is not handed one. */
+  const valueRef = useRef(value);
+  valueRef.current = value;
+
   const edit = useCallback((next: string) => {
     localRef.current = next;
     setValue(next);
+    if (!persist) return;
     clearTimeout(commitTimer.current);
     commitTimer.current = setTimeout(
       () => setStored(next === "" ? undefined : next),
       debounceMs,
     );
-  }, [setStored, debounceMs]);
+  }, [setStored, debounceMs, persist]);
+
+  const commit = useCallback((next?: string) => {
+    const text = next ?? valueRef.current ?? "";
+    localRef.current = text;
+    setValue(text);
+    clearTimeout(commitTimer.current);
+    setStored(text === "" ? undefined : text);
+  }, [setStored]);
 
   const replace = useCallback((next: string) => {
     localRef.current = null;
@@ -82,5 +120,5 @@ export function useHashParamDocument(
     setValue(stored);
   }, [stored]);
 
-  return { value, edit, replace };
+  return { value, edit, replace, commit, stored };
 }

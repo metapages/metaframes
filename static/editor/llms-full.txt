@@ -1,0 +1,257 @@
+# Metaframe Editor — complete reference
+
+> An embeddable code and text editor (Monaco, the engine behind VS Code) configured entirely by its
+> URL. The document and every editor option are encoded in the URL hash, so one URL is a complete,
+> shareable, embeddable editor. No install, no build step, no bundler, no account, no API key.
+
+Base URL: `https://editor.mtfm.io/`
+Source:   https://github.com/metapages/metaframe-editor
+
+This document is self-contained. If you are an agent wiring this into a page, everything you need
+is below.
+
+
+## 1. The 30-second version
+
+```html
+<iframe src="https://editor.mtfm.io/#?text=SGVsbG8lMkMlMjB3b3JsZCE=&amp;options=JTdCJTIybW9kZSUyMiUzQSUyMm1hcmtkb3duJTIyJTdE"
+        style="width:100%;height:400px;border:0"></iframe>
+```
+
+That renders a markdown editor containing `Hello, world!`.
+
+The URL shape is always:
+
+```
+https://editor.mtfm.io/#?text=<ENCODED_TEXT>&options=<ENCODED_JSON>
+```
+
+Everything after `#` is a fragment, so it never reaches a server. The document lives in the link.
+
+
+## 2. Encoding (read this part carefully)
+
+Both `text` and `options` use the same encoding: **URI-encode the string, then base64 it.**
+
+```js
+const encode = (s) => btoa(encodeURIComponent(s));
+```
+
+Build a URL:
+
+```js
+const encode = (s) => btoa(encodeURIComponent(s));
+
+function editorUrl(text, options = {}) {
+  const params = [`text=${encode(text)}`];
+  if (Object.keys(options).length) params.push(`options=${encode(JSON.stringify(options))}`);
+  return `https://editor.mtfm.io/#?${params.join("&")}`;
+}
+
+editorUrl("print('hi')", { mode: "python", theme: "vs-dark" });
+```
+
+Node.js (no `btoa` needed):
+
+```js
+const encode = (s) => Buffer.from(encodeURIComponent(s)).toString("base64");
+```
+
+Python:
+
+```python
+import base64, json, urllib.parse
+
+def encode(s: str) -> str:
+    return base64.b64encode(urllib.parse.quote(s, safe="").encode()).decode()
+
+def editor_url(text: str, options: dict | None = None) -> str:
+    parts = [f"text={encode(text)}"]
+    if options:
+        parts.append(f"options={encode(json.dumps(options, separators=(',', ':')))}")
+    return "https://editor.mtfm.io/#?" + "&".join(parts)
+```
+
+All three produce byte-identical output.
+
+### Do not use bare base64
+
+Older examples show `btoa(text)` without the URI-encode step. That is wrong and fails in two ways:
+
+| Input text        | `btoa(text)`                        | `btoa(encodeURIComponent(text))` |
+|-------------------|-------------------------------------|----------------------------------|
+| `plain ascii`     | works                               | works                            |
+| `50% done`        | **editor shows nothing** (URIError) | works                            |
+| `a%20b`           | **silently becomes `a b`**          | works                            |
+| `héllo 😀`        | **throws InvalidCharacterError**    | works                            |
+
+Any `%` in your text, and any character outside Latin-1, breaks the bare form. The reader decodes
+with `decodeURIComponent(atob(value))` whenever the decoded bytes contain a `%`, so bare base64 of
+text containing `%` is misinterpreted. Always URI-encode first. It is also correct for plain ASCII,
+so there is never a reason to use the bare form.
+
+### Decoding (reading a URL back)
+
+```js
+const decode = (s) => {
+  while (s.endsWith("%3D")) s = s.slice(0, -3);   // tolerate over-escaped padding
+  const d = atob(s);
+  return d.includes("%") ? decodeURIComponent(d) : d;
+};
+```
+
+### Transport notes
+
+- Base64 `+`, `/` and `=` are legal in a URL fragment. Do not percent-encode them again.
+- In an HTML attribute, write the separator as `&amp;` rather than a bare `&`.
+- Practical URL ceiling is tens of kilobytes. For large documents, pass the text over the live
+  input pipe (section 6) instead of baking it into the URL.
+
+
+## 3. Hash parameters
+
+Only three parameters are read by this app.
+
+| Param     | Encoding                    | Meaning |
+|-----------|-----------------------------|---------|
+| `text`    | `base64(uriEncode(string))` | The document body. |
+| `options` | `base64(uriEncode(json))`   | Editor configuration, see section 4. |
+| `hm`      | plain string                | Menu bar behaviour, see below. |
+
+`hm` controls the hamburger toggle that reveals the Editor / Options / Help tab bar. The tab bar is
+hidden by default when the page is inside an iframe, and shown when it is loaded top-level.
+
+| `hm` value            | Behaviour when the menu is toggled off |
+|-----------------------|----------------------------------------|
+| unset or `invisible`  | Hamburger is invisible but still clickable (default). |
+| `visible`             | Hamburger stays visible. |
+| `disabled`            | No menu at all; cannot be re-opened without editing the URL. Use for a locked-down embed. |
+
+Ignore `button` and `menuhidden` if you see them in older examples — this app does not read them.
+
+
+## 4. Options
+
+`options` is a JSON object, encoded as in section 2. Every key is optional.
+
+| Key                               | Type                   | Default  | Effect |
+|-----------------------------------|------------------------|----------|--------|
+| `mode`                            | string (language id)   | `json`   | Syntax highlighting. Any Monaco language id, see section 5. A file extension such as `py` is mapped to its language where unambiguous. |
+| `theme`                           | `light` \| `vs-dark`   | `light`  | Colour theme. |
+| `readOnly`                        | boolean                | `false`  | Display only; no editing, and the Save button is hidden. |
+| `autosend`                        | boolean                | `false`  | Emit the value on every keystroke instead of showing a Save button. |
+| `saveloadinhash`                  | boolean                | `false`  | Persist edits back into the URL hash (debounced 500 ms), so the URL stays current as the user types. |
+| `wordWrap`                        | boolean                | `false`  | Wrap long lines. |
+| `hideLineNumbers`                 | boolean                | `false`  | Hide the line-number gutter. |
+| `autoFocus`                       | boolean                | `false`  | Focus the editor on load. Avoid on pages with several embeds. |
+| `blockLocalEditorStateOverwrites` | boolean                | `false`  | Once the user has typed, ignore incoming input-pipe values so their work is not clobbered. |
+
+Notes:
+
+- With `mode: "json"`, a value that starts with `{` or `[` is `JSON.parse`d before being emitted, so
+  downstream consumers receive a real object rather than a string. Invalid JSON is passed through as
+  text rather than erroring.
+- `readOnly` and `autosend` each hide the Save button, for opposite reasons.
+
+Common combinations:
+
+```js
+// Static, non-editable code sample on a docs page
+{ mode: "python", theme: "vs-dark", readOnly: true, hideLineNumbers: true }
+
+// Live two-way editor that keeps the URL in sync
+{ mode: "yaml", autosend: true, saveloadinhash: true }
+
+// Prose scratchpad
+{ mode: "plaintext", wordWrap: true }
+```
+
+
+## 5. Language ids for `mode`
+
+90 ids are registered:
+
+```
+abap aes apex azcli bat bicep c cameligo clojure coffeescript cpp csharp csp css cypher dart
+dockerfile ecl elixir flow9 freemarker2 fsharp go graphql handlebars hcl html ini java javascript
+json julia kotlin less lexon liquid lua m3 markdown mdx mips msdax mysql objective-c pascal
+pascaligo perl pgsql php pla plaintext postiats powerquery powershell proto pug python qsharp r
+razor redis redshift restructuredtext ruby rust sb scala scheme scss shell sol sparql sql st swift
+systemverilog tcl twig typescript vb verilog wgsl xml yaml
+```
+
+Plus six `freemarker2.tag-*.interpolation-*` variants.
+
+Watch the spellings: `cpp` not `c++`, `csharp` not `cs`, `shell` not `bash`, `proto` not `protobuf`,
+`sol` for Solidity, `objective-c` with the hyphen, `plaintext` for no highlighting.
+
+The authoritative live list is the dropdown in the app's Options tab.
+
+
+## 6. Live data in and out (embedding with two-way flow)
+
+When embedded, the editor talks to its host over `postMessage` using the metaframe protocol. It
+declares one input pipe and one output pipe, both named `text` (see `/metaframe.json`).
+
+- **Input**: send a value on the `text` pipe to load it into the editor. If you send a different
+  pipe name, the first key received becomes the active name and is used for output too.
+- **Output**: the edited value is emitted on the same pipe name — on every keystroke when
+  `autosend` is true, otherwise when the user presses Save.
+- Input values may be a string, a plain object or Blob (stringified to JSON with 2-space indent),
+  or a dataref (fetched and read as text). You do not have to pre-serialize.
+
+React, using the convenience wrapper:
+
+```jsx
+import { MetaframeStandaloneComponent } from "@metapages/metapage-embed-react";
+
+const encode = (s) => btoa(encodeURIComponent(s));
+const options = encode(JSON.stringify({ mode: "python", autosend: true }));
+
+export const CodeEditor = ({ code, onChange }) => (
+  <MetaframeStandaloneComponent
+    url={`https://editor.mtfm.io/#?options=${options}&hm=disabled`}
+    inputs={{ text: code }}
+    onOutputs={(outputs) => onChange(outputs.text)}
+  />
+);
+```
+
+A plain `<iframe>` works identically; the wrapper only saves you the `postMessage` plumbing.
+
+In a metapage, wire any upstream metaframe's output into this one's `text` input and consume its
+`text` output downstream — no code at all.
+
+
+## 7. Gotchas
+
+1. **The hash is read once, at load.** Mutating `iframe.contentWindow.location.hash` on an
+   already-loaded embed does not change the content. Set the `src` attribute afresh (or reload) to
+   swap documents via URL, or use the input pipe for live updates.
+2. **Bare `btoa` corrupts text.** See section 2.
+3. **`%3D` padding is tolerated** on read, but emit plain `=` padding.
+4. **Without `saveloadinhash`, edits do not update the URL.** The URL keeps the text it was opened
+   with. That is usually what you want for an embed; set the flag when the URL should be the
+   user's saveable artifact.
+5. **`autoFocus` on several embeds** on one page will fight over focus.
+6. **Large documents belong on the input pipe**, not in the URL.
+
+
+## 8. Machine-readable endpoints
+
+| URL                                     | Contents |
+|-----------------------------------------|----------|
+| `https://editor.mtfm.io/llms.txt`       | Short index for agents. |
+| `https://editor.mtfm.io/llms-full.txt`  | This document. |
+| `https://editor.mtfm.io/README.md`      | Human-oriented guide, also shown in the Help tab. |
+| `https://editor.mtfm.io/metaframe.json` | Manifest: declared input/output pipes and hash params. |
+
+All are served with `Access-Control-Allow-Origin: *`, so they are fetchable from anywhere.
+
+
+## 9. Related
+
+- Monaco editor: https://microsoft.github.io/monaco-editor/
+- What is a metaframe: https://docs.metapage.io/docs/what-is-a-metaframe
+- Sibling metaframe, markdown renderer: https://markdown.mtfm.io/
+- Repository and issues: https://github.com/metapages/metaframe-editor

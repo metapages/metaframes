@@ -1,4 +1,4 @@
-import { useEffect } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { useHashParamJson } from "./useHashParam.ts";
 
 /**
@@ -55,4 +55,44 @@ export function useHashParamColorScheme(optionsKey: string = "options"): void {
     if (theme === null) root.removeAttribute("data-theme");
     else root.setAttribute("data-theme", theme);
   }, [theme]);
+}
+
+/**
+ * The scheme a frame is actually drawing in, with `system` resolved against
+ * the device and kept in step if the device setting changes while open.
+ *
+ * `useHashParamColorScheme` can leave `system` to CSS, because
+ * `prefers-color-scheme` is a media query. Anything drawn in JavaScript — a
+ * canvas, a syntax-highlighting theme — has to be told, so it asks here.
+ */
+export function useResolvedColorScheme(
+  optionsKey: string = "options",
+): "light" | "dark" {
+  const [options] = useHashParamJson<{ theme?: string }>(optionsKey, {});
+  const pinned = themeAttributeFor(options?.theme);
+  const [device, setDevice] = useState<"light" | "dark">("light");
+
+  useEffect(() => {
+    if (pinned !== null) return;
+    const query = globalThis.matchMedia?.("(prefers-color-scheme: dark)");
+    if (!query) return;
+    const read = () => setDevice(query.matches ? "dark" : "light");
+    read();
+    query.addEventListener("change", read);
+    return () => query.removeEventListener("change", read);
+  }, [pinned]);
+
+  return pinned ?? device;
+}
+
+/**
+ * The Monaco theme id for a resolved scheme.
+ *
+ * Monaco registers `vs`, `vs-dark`, `hc-black` and `hc-light`; `light` is not
+ * one of them. The published editor passes `options.theme` straight through,
+ * so its `light` falls back to `vs` inside Monaco's theme service — the right
+ * result by accident. This says it on purpose.
+ */
+export function monacoThemeFor(scheme: "light" | "dark"): string {
+  return scheme === "dark" ? "vs-dark" : "vs";
 }

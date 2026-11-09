@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 // bundle from here. The real modules are imported dynamically below.
 import type { EditorView as EditorViewType } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
+import { createEchoGuard } from "../lib/editorEcho.ts";
 
 /**
  * Language grammars, loaded on demand so a frame only ever fetches the one it
@@ -44,12 +45,14 @@ export function CodeMirror({ value, language, onChange, class: cls }: Props) {
   const valueRef = useRef(value);
   valueRef.current = value;
   /**
-   * The last text this editor emitted. External updates are pushed into the
-   * buffer, but the echo of our own edit must not be: by the time it arrives
-   * the user has usually typed more, and overwriting would drop those
-   * keystrokes and leave the view lagging unpredictably.
+   * Tells our own echo apart from a real outside change.
+   *
+   * It has to remember every emission still outstanding, not just the last
+   * one: with a single remembered value, two keystrokes inside one render
+   * batch send this and its caller into an endless exchange that locks up the
+   * tab. See lib/editorEcho.ts.
    */
-  const lastEmitted = useRef<string | null>(null);
+  const echo = useRef(createEchoGuard());
 
   const [failed, setFailed] = useState(false);
 
@@ -96,7 +99,7 @@ export function CodeMirror({ value, language, onChange, class: cls }: Props) {
           EditorView.updateListener.of((u) => {
             if (!u.docChanged) return;
             const text = u.state.doc.toString();
-            lastEmitted.current = text;
+            echo.current.emitted(text);
             onChangeRef.current(text);
           }),
           EditorView.theme({
@@ -134,11 +137,9 @@ export function CodeMirror({ value, language, onChange, class: cls }: Props) {
   useEffect(() => {
     const v = view.current;
     if (!v) return;
-    if (value === lastEmitted.current) return; // our own edit, coming back
     const current = v.state.doc.toString();
-    if (value !== current) {
-      v.dispatch({ changes: { from: 0, to: current.length, insert: value } });
-    }
+    if (!echo.current.isExternal(value, current)) return;
+    v.dispatch({ changes: { from: 0, to: current.length, insert: value } });
   }, [value]);
 
   if (failed) {

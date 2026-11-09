@@ -97,6 +97,13 @@ example app.metapage.io) is usually light whatever the viewer's device says.
 Set `Color scheme` to `System` when the embedding page follows the device too,
 or give the frame its own opaque ground with `Default background color`.
 
+The rendered document also sits **flush against the frame's edges** — no
+padding, and no margin on the first or last block. Space around a frame belongs
+to whatever embeds it, which can add padding around the iframe; space baked into
+the frame reads as mystery padding the embedder cannot reach in and remove. Add
+your own with the `css` param, e.g.
+`.markdown-body { padding: 1rem }`.
+
 
 ## Dynamically add content
 

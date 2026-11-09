@@ -449,6 +449,16 @@ body {
 .markdown-body img {
   max-width: 100%;
 }
+/* The document's outer edges carry nothing. A block's own margin at the very
+   top or bottom is as visible as padding on the container, and in an embedded
+   frame it is just as unremovable from outside, so the leading and trailing
+   margins go. Margins *between* blocks are untouched. */
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
 
 /* Figures a script draws into the output pane (matplotlib via
    matplotlib_pyodide) are raw DOM, so they need sizing here. */

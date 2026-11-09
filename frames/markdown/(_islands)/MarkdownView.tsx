@@ -113,13 +113,17 @@ export function MarkdownView({ help }: { help: HelpConfig }) {
       panels={panels}
     >
       {
-        /* No background: the rendered document is transparent so the metapage
-           embedding it shows through, the way the published renderer was. An
-           opaque ground is the shell's `bgColor` setting. */
+        /* No background and no padding: the rendered document is transparent so
+           the metapage embedding it shows through, the way the published
+           renderer was, and it sits flush against the frame's edges. Inset here
+           reads as mystery space in the embedding page, which cannot reach in to
+           remove it — spacing belongs to whoever embeds the frame. The first and
+           last block's margins are zeroed in `.markdown-body` for the same
+           reason. An opaque ground is the shell's `bgColor` setting. */
       }
       <div
         ref={setRoot}
-        class="markdown-body h-full w-full overflow-auto px-6 py-5"
+        class="markdown-body h-full w-full overflow-auto"
       />
     </FrameShell>
   );

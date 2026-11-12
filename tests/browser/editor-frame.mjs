@@ -8,8 +8,10 @@
 import { chromium } from "playwright";
 import {
   BASE,
+  collectedOutputs,
   createReporter,
   embedAndExchange,
+  embedFrame,
   enc,
   encJson,
   openFresh,
@@ -135,7 +137,14 @@ ok(
     )
   ) === true,
 );
-ok("readOnly hides Save", (await page.$('button:has-text("Save")')) === null);
+await page.click(".monaco-editor .view-lines");
+await page.keyboard.type("nope");
+await page.waitForTimeout(600);
+ok(
+  "readOnly refuses edits",
+  (await textOf()) === "x",
+  JSON.stringify(await textOf()),
+);
 
 await openFresh(
   page,
@@ -147,30 +156,40 @@ ok(
   (await page.$$(".monaco-editor .line-numbers")).length === 0,
 );
 
-section("Save, autosend and saveloadinhash");
+section("saving: no button, and nothing stranded behind one");
 await openFresh(page, `${FRAME}/#?text=${enc("start")}`);
 await ready();
 ok(
-  "Save is shown by default",
-  (await page.$('button:has-text("Save")')) !== null,
+  "there is no Save button",
+  (await page.$('button:has-text("Save")')) === null,
 );
+ok(
+  "and none for a URL that asked for the old autosend",
+  await (async () => {
+    await openFresh(
+      page,
+      `${FRAME}/#?text=${enc("start")}&options=${encJson({ autosend: true })}`,
+    );
+    await ready();
+    return (await page.$('button:has-text("Save")')) === null;
+  })(),
+);
+
+// Without saveloadinhash the URL must stay exactly as it was handed over:
+// an embed's link is not a scratchpad.
+await openFresh(page, `${FRAME}/#?text=${enc("start")}`);
+await ready();
 const before = await page.evaluate(() => location.hash);
 await page.click(".monaco-editor .view-lines");
 await page.keyboard.type("ABC");
-await page.waitForTimeout(1200);
+await page.waitForTimeout(1400);
 ok(
-  "typing alone never rewrites the URL",
+  "without saveloadinhash, typing leaves the URL alone",
   (await page.evaluate(() => location.hash)) === before,
 );
 ok("the typed text is in the editor", (await textOf()).includes("ABC"));
 
-await openFresh(
-  page,
-  `${FRAME}/#?text=${enc("start")}&options=${encJson({ autosend: true })}`,
-);
-await ready();
-ok("autosend hides Save", (await page.$('button:has-text("Save")')) === null);
-
+// With it, the URL tracks the text as it is typed — no press required.
 await openFresh(
   page,
   `${FRAME}/#?text=${enc("start")}&options=${
@@ -180,42 +199,39 @@ await openFresh(
 await ready();
 await page.click(".monaco-editor .view-lines");
 await page.keyboard.type("ABC");
-await page.waitForTimeout(1200);
-ok(
-  "saveloadinhash without autosend still waits for Save",
-  (await page.evaluate(() => location.hash)).includes(enc("start")),
-);
-await page.click('button:has-text("Save")');
-await page.waitForTimeout(900);
+await page.waitForTimeout(1500);
 const saved = await page.evaluate(() => {
   const m = /text=([^&]*)/.exec(location.hash);
   return m ? decodeURIComponent(atob(m[1])) : null;
 });
 ok(
-  "Save writes the edited text into the URL",
+  "with saveloadinhash, typing writes the URL on its own",
   !!saved?.includes("ABC"),
   String(saved),
 );
 
-await openFresh(
-  page,
-  `${FRAME}/#?text=${enc("start")}&options=${
-    encJson({ autosend: true, saveloadinhash: true })
+// The other half of saving: the output pipe, with no flags set at all.
+const emitHost = await ctx.newPage();
+await emitHost.goto(`${BASE}/`);
+await embedFrame(emitHost, {
+  src: `${FRAME}/#?text=${enc("start")}&options=${
+    encJson({ mode: "plaintext" })
   }`,
-);
-await ready();
-await page.click(".monaco-editor .view-lines");
-await page.keyboard.type("QQ");
-await page.waitForTimeout(1500);
-const live = await page.evaluate(() => {
-  const m = /text=([^&]*)/.exec(location.hash);
-  return m ? decodeURIComponent(atob(m[1])) : null;
 });
+const embedded = emitHost.frames().find((f) => f.url().includes("/editor"));
+await embedded.waitForSelector(".monaco-editor .view-lines", { timeout: 40000 });
+await embedded.click(".monaco-editor .view-lines");
+await emitHost.keyboard.type("ZZ");
+await emitHost.waitForTimeout(1500);
+const emitted = await collectedOutputs(emitHost);
 ok(
-  "autosend + saveloadinhash keeps the URL current while typing",
-  !!live?.includes("QQ"),
-  String(live),
+  "an edit reaches the output pipe with no options set",
+  emitted.some((o) =>
+    o && typeof o.text === "string" && o.text.includes("ZZ")
+  ),
+  JSON.stringify(emitted).slice(0, 200),
 );
+await emitHost.close();
 
 section("the settings panel");
 await openFresh(page, `${FRAME}/#?text=${enc("x")}&edit=true`);
@@ -230,7 +246,6 @@ for (
   const want of [
     "Language",
     "Read only",
-    "Send on every keystroke",
     "Keep the text in the URL",
     "Wrap long lines",
     "Hide line numbers",
@@ -241,6 +256,11 @@ for (
 ) {
   ok(`field present: ${want}`, labels.includes(want), JSON.stringify(labels));
 }
+ok(
+  "the autosend field is gone with the button it described",
+  !labels.includes("Send on every keystroke"),
+  JSON.stringify(labels),
+);
 const modes = await page.$$eval("#option-mode option", (os) => os.length);
 ok("every pinned Monaco language is offered", modes === 84, String(modes));
 

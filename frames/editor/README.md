@@ -71,7 +71,7 @@ import { MetaframeStandaloneComponent } from '@metapages/metapage-embed-react';
 const encode = (s: string) => globalThis.btoa(encodeURIComponent(s));
 
 // Editor config lives in the URL; the text itself flows over the input pipe.
-const options = encode(JSON.stringify({ mode: "typescript", autosend: true }));
+const options = encode(JSON.stringify({ mode: "typescript" }));
 const url = `https://editor.mtfm.io/#?options=${options}&hm=disabled`;
 
 export const PanelCodeEditor: React.FC<{ code: string }> = ({ code }) => {
@@ -118,12 +118,25 @@ const url = `https://editor.mtfm.io/#?text=${encodedText}`
 > `%` — so `50% done` renders as an empty editor. The URI-encoding step is also correct for
 > plain ASCII, so always use it.
 
+## Saving
+
+There is no Save button. An edit counts the moment it is made:
+
+- it goes out on the **output pipe**, so whatever this frame is connected to sees it;
+- and it is written into the **URL** as well, when `saveloadinhash` is set.
+
+Nothing has to be pressed. The frame is usually embedded in someone else's page, where
+nothing suggests a press is owed, and a button that must be found for work to be kept is a
+way to lose work.
+
+`autosend` used to opt in to this, back when the alternative was a Save button. It is still
+accepted in a URL and ignored.
+
 ## Adding options to the code editor link
 
 Currently supported options (all optional):
 * `mode` - language id, defaults to `"json"`
 * `theme` - `"light"` (default) or `"vs-dark"`
-* `autosend` - boolean, send on every keystroke instead of showing a Save button
 * `saveloadinhash` - boolean, persist edits back into the URL hash
 * `readOnly` - boolean
 * `wordWrap` - boolean, wrap long lines
@@ -158,9 +171,8 @@ Everything in the Settings panel is a hash param, so a configured editor is just
 | Setting | Hash param | Notes |
 |---|---|---|
 | Language | `options.mode` | Any Monaco language id, or a file extension such as `py`. Default `json`. |
-| Read only | `options.readOnly` | Hides the Save button. |
-| Send on every keystroke | `options.autosend` | Otherwise the text leaves the frame when Save is pressed. |
-| Keep the text in the URL | `options.saveloadinhash` | With `autosend`, the URL tracks the text as it is typed; without it, Save writes the URL. |
+| Read only | `options.readOnly` | Show the text without allowing edits. |
+| Keep the text in the URL | `options.saveloadinhash` | The URL tracks the text as it is typed. Off means the URL keeps what it was opened with. |
 | Wrap long lines | `options.wordWrap` | |
 | Hide line numbers | `options.hideLineNumbers` | |
 | Focus on load | `options.autoFocus` | Avoid on a page with several editors. |

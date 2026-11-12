@@ -138,8 +138,7 @@ Ignore `button` and `menuhidden` if you see them in older examples — this app 
 |-----------------------------------|------------------------|----------|--------|
 | `mode`                            | string (language id)   | `json`   | Syntax highlighting. Any Monaco language id, see section 5. A file extension such as `py` is mapped to its language where unambiguous. |
 | `theme`                           | `light` \| `vs-dark`   | `light`  | Colour theme. |
-| `readOnly`                        | boolean                | `false`  | Display only; no editing, and the Save button is hidden. |
-| `autosend`                        | boolean                | `false`  | Emit the value on every keystroke instead of showing a Save button. |
+| `readOnly`                        | boolean                | `false`  | Display only; no editing. |
 | `saveloadinhash`                  | boolean                | `false`  | Persist edits back into the URL hash (debounced 500 ms), so the URL stays current as the user types. |
 | `wordWrap`                        | boolean                | `false`  | Wrap long lines. |
 | `hideLineNumbers`                 | boolean                | `false`  | Hide the line-number gutter. |
@@ -151,7 +150,12 @@ Notes:
 - With `mode: "json"`, a value that starts with `{` or `[` is `JSON.parse`d before being emitted, so
   downstream consumers receive a real object rather than a string. Invalid JSON is passed through as
   text rather than erroring.
-- `readOnly` and `autosend` each hide the Save button, for opposite reasons.
+- **There is no Save button.** An edit is emitted on the output pipe as it is made, and written
+  into the URL as well when `saveloadinhash` is set. Nothing has to be pressed for an edit to
+  count, which matters because this frame is usually embedded in a page that gives no hint a
+  press is owed.
+- `autosend` was the opt-in to sending on every keystroke, back when the alternative was a Save
+  button. It is still accepted in a URL and ignored: sending is now the only behaviour.
 
 Common combinations:
 
@@ -160,7 +164,7 @@ Common combinations:
 { mode: "python", theme: "vs-dark", readOnly: true, hideLineNumbers: true }
 
 // Live two-way editor that keeps the URL in sync
-{ mode: "yaml", autosend: true, saveloadinhash: true }
+{ mode: "yaml", saveloadinhash: true }
 
 // Prose scratchpad
 { mode: "plaintext", wordWrap: true }
@@ -195,8 +199,7 @@ declares one input pipe and one output pipe, both named `text` (see `/metaframe.
 
 - **Input**: send a value on the `text` pipe to load it into the editor. If you send a different
   pipe name, the first key received becomes the active name and is used for output too.
-- **Output**: the edited value is emitted on the same pipe name — on every keystroke when
-  `autosend` is true, otherwise when the user presses Save.
+- **Output**: the edited value is emitted on the same pipe name, on every keystroke.
 - Input values may be a string, a plain object or Blob (stringified to JSON with 2-space indent),
   or a dataref (fetched and read as text). You do not have to pre-serialize.
 
@@ -206,7 +209,7 @@ React, using the convenience wrapper:
 import { MetaframeStandaloneComponent } from "@metapages/metapage-embed-react";
 
 const encode = (s) => btoa(encodeURIComponent(s));
-const options = encode(JSON.stringify({ mode: "python", autosend: true }));
+const options = encode(JSON.stringify({ mode: "python" }));
 
 export const CodeEditor = ({ code, onChange }) => (
   <MetaframeStandaloneComponent
@@ -231,8 +234,8 @@ In a metapage, wire any upstream metaframe's output into this one's `text` input
 2. **Bare `btoa` corrupts text.** See section 2.
 3. **`%3D` padding is tolerated** on read, but emit plain `=` padding.
 4. **Without `saveloadinhash`, edits do not update the URL.** The URL keeps the text it was opened
-   with. That is usually what you want for an embed; set the flag when the URL should be the
-   user's saveable artifact.
+   with, and edits travel only on the output pipe. That is usually what you want for an embed; set
+   the flag when the URL should be the user's saveable artifact.
 5. **`autoFocus` on several embeds** on one page will fight over focus.
 6. **Large documents belong on the input pipe**, not in the URL.
 

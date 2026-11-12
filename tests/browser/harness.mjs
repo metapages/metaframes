@@ -106,6 +106,53 @@ export async function embedAndExchange(
 }
 
 /**
+ * Embed a frame and leave it running, collecting whatever it emits.
+ *
+ * `embedAndExchange` does its whole conversation inside one `evaluate`, which
+ * cannot type into a cross-origin iframe — only Playwright can, through
+ * `page.frames()`. So this sets the parent side up, returns, and leaves the
+ * outputs accumulating on the host window for `collectedOutputs` to read once
+ * the test has driven the frame.
+ */
+export async function embedFrame(hostPage, { src, settleMs = 2500 }) {
+  await hostPage.evaluate(
+    async ({ src, settleMs }) => {
+      const PARENT = "testparent";
+      globalThis.__mtfmOutputs = [];
+
+      const frame = document.createElement("iframe");
+      frame.src = src;
+      frame.style.cssText = "width:700px;height:420px;border:0;display:block";
+
+      globalThis.addEventListener("message", (event) => {
+        const data = event.data;
+        if (!data || data.jsonrpc !== "2.0") return;
+        if (data.method === "SetupIframeClientRequest") {
+          frame.contentWindow?.postMessage({
+            jsonrpc: "2.0",
+            method: "SetupIframeServerResponse",
+            params: { version: "2", parentId: PARENT },
+            iframeId: "",
+            parentId: PARENT,
+          }, "*");
+        } else if (data.method === "OutputsUpdate") {
+          globalThis.__mtfmOutputs.push(data.params);
+        }
+      });
+
+      document.body.appendChild(frame);
+      await new Promise((r) => setTimeout(r, settleMs));
+    },
+    { src, settleMs },
+  );
+}
+
+/** Everything the embedded frame has emitted so far. */
+export function collectedOutputs(hostPage) {
+  return hostPage.evaluate(() => globalThis.__mtfmOutputs ?? []);
+}
+
+/**
  * Type into an editor and fail loudly if the page stops responding.
  *
  * A wedged main thread makes every later Playwright call hang forever rather

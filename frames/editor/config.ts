@@ -117,6 +117,13 @@ export const DEFAULT_LANGUAGE = "json";
 // its form while embeds without an `options` param got `false`, so the panel
 // and the wire disagreed; the wire wins, because that is what published URLs
 // were written against.
+//
+// `autosend` is gone. It chose between sending on every keystroke and waiting
+// for a Save button, and there is no Save button: an edit is sent as it is
+// made. Old URLs may still carry the key and it is ignored — one that set it
+// already gets what it asked for, and one that did not now gets its edits
+// sent rather than stranded behind a button nobody in an embedding page knew
+// to press.
 export const options: FrameOption[] = [
   {
     name: "mode",
@@ -129,22 +136,16 @@ export const options: FrameOption[] = [
   {
     name: "readOnly",
     displayName: "Read only",
-    hint: "Show the text without allowing edits. Hides the Save button.",
-    type: "boolean",
-  },
-  {
-    name: "autosend",
-    displayName: "Send on every keystroke",
-    hint:
-      "Emit the text as it is typed, instead of waiting for the Save button.",
+    hint: "Show the text without allowing edits.",
     type: "boolean",
   },
   {
     name: "saveloadinhash",
     displayName: "Keep the text in the URL",
     hint:
-      "Write edits back into the URL, so the link is the document. Off means " +
-      "the URL keeps whatever it was opened with.",
+      "Write edits back into the URL as they are made, so the link is the " +
+      "document. Off means the URL keeps whatever it was opened with, and " +
+      "edits travel only on the output pipe.",
     type: "boolean",
   },
   {

@@ -26,12 +26,6 @@ export interface HashParamDocument {
    */
   replace: (next: string) => void;
   /**
-   * Write the current text to the hash now, whatever `persist` says. For a
-   * frame where committing is an explicit act — the editor's Save button —
-   * rather than a consequence of typing.
-   */
-  commit: (next?: string) => void;
-  /**
    * What the hash itself holds, which is not the same as `value` once
    * something has been typed. A frame that forwards its document onward reads
    * this, so it reacts to the URL changing rather than to every keystroke.
@@ -45,8 +39,7 @@ export interface HashParamDocumentOptions {
   /**
    * Whether typing reaches the hash at all. False makes the hash the
    * document's starting point rather than its running state, which is what an
-   * embed wants: the URL it was given stays the URL it was given, and only
-   * `commit` changes it.
+   * embed wants: the URL it was given stays the URL it was given.
    */
   persist?: boolean;
 }
@@ -81,10 +74,6 @@ export function useHashParamDocument(
     undefined,
   );
 
-  /** The current text, for a `commit()` that is not handed one. */
-  const valueRef = useRef(value);
-  valueRef.current = value;
-
   const edit = useCallback((next: string) => {
     localRef.current = next;
     setValue(next);
@@ -95,14 +84,6 @@ export function useHashParamDocument(
       debounceMs,
     );
   }, [setStored, debounceMs, persist]);
-
-  const commit = useCallback((next?: string) => {
-    const text = next ?? valueRef.current ?? "";
-    localRef.current = text;
-    setValue(text);
-    clearTimeout(commitTimer.current);
-    setStored(text === "" ? undefined : text);
-  }, [setStored]);
 
   const replace = useCallback((next: string) => {
     localRef.current = null;
@@ -120,5 +101,5 @@ export function useHashParamDocument(
     setValue(stored);
   }, [stored]);
 
-  return { value, edit, replace, commit, stored };
+  return { value, edit, replace, stored };
 }

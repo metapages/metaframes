@@ -31,7 +31,8 @@ Do not use bare `btoa(text)`. It throws on non-Latin1 characters and silently co
 ## Reference
 
 - Hash params read by this app: `text` (the document), `options` (JSON config), `hm` (menu visibility: `invisible` | `visible` | `disabled`). Nothing else is read; `button` and `menuhidden` appear in old examples and are no-ops here.
-- Options keys: `mode` (language id, default `json`), `theme` (`light` | `vs-dark`), `readOnly`, `autosend`, `saveloadinhash`, `wordWrap`, `hideLineNumbers`, `autoFocus`, `blockLocalEditorStateOverwrites`. All booleans default to `false`.
+- Options keys: `mode` (language id, default `json`), `theme` (`light` | `vs-dark` | `system`), `readOnly`, `saveloadinhash`, `wordWrap`, `hideLineNumbers`, `autoFocus`, `blockLocalEditorStateOverwrites`. All booleans default to `false`.
+- There is no Save button. Edits are emitted on the output pipe as they are made, and written into the URL as well when `saveloadinhash` is set. `autosend` was the old opt-in to this and is now accepted and ignored.
 - Live data: when embedded, the editor receives text on an input pipe and emits edits on an output pipe, both named `text` by default, over `postMessage`.
 
 ## Source

@@ -37,7 +37,6 @@ import {
 interface EditorOptions {
   mode?: string;
   readOnly?: boolean;
-  autosend?: boolean;
   saveloadinhash?: boolean;
   wordWrap?: boolean;
   hideLineNumbers?: boolean;
@@ -59,19 +58,22 @@ export function EditorView({ help }: { help: HelpConfig }) {
   const inputs = useMetaframeInputs();
   const setOutputs = useSetMetaframeOutputs();
 
-  const autosend = !!opts?.autosend;
   const saveInHash = !!opts?.saveloadinhash;
   const readOnly = !!opts?.readOnly;
 
   /**
-   * Typing reaches the URL only with BOTH flags, which is what the published
-   * app does: the hash write sits inside its `autosend` branch. Without
-   * `autosend` the URL changes when Save is pressed and not before, so an
-   * embed's link stays the link it was given.
+   * There is no Save button. An edit is saved the moment it is made: sent on
+   * the output pipe always, and written into the URL when `saveloadinhash`
+   * says the URL is where this document lives.
+   *
+   * The published app had a Save button, and an `autosend` option whose only
+   * job was to replace it with live sending. A button that must be pressed
+   * for work to count is a way to lose work — the frame is often an embed in
+   * someone else's page, where nothing suggests a press is owed — so sending
+   * is now the only behaviour and `autosend` describes nothing. It is still
+   * accepted in a URL and ignored.
    */
-  const doc = useHashParamDocument("text", {
-    persist: autosend && saveInHash,
-  });
+  const doc = useHashParamDocument("text", { persist: saveInHash });
 
   /**
    * The pipe to read and write. Starts as `text`; if a metapage sends on a
@@ -106,18 +108,8 @@ export function EditorView({ help }: { help: HelpConfig }) {
   const onEdit = useCallback((next: string) => {
     touched.current = true;
     doc.edit(next);
-    if (autosend) emit(next);
-  }, [doc.edit, autosend, emit]);
-
-  const onSave = useCallback(() => {
-    if (saveInHash) {
-      // Writing the hash emits, through the effect below, so this is one path
-      // rather than two that could disagree.
-      doc.commit();
-    } else {
-      emit(doc.value ?? "");
-    }
-  }, [saveInHash, doc.commit, doc.value, emit]);
+    emit(next);
+  }, [doc.edit, emit]);
 
   /**
    * The document as the URL holds it: on load, and whenever the hash changes
@@ -125,8 +117,9 @@ export function EditorView({ help }: { help: HelpConfig }) {
    * receives the starting document without anyone pressing anything — the
    * published app does the same.
    *
-   * `doc.stored`, not `doc.value`: the latter changes on every keystroke, and
-   * emitting from there would make every editor an `autosend` editor.
+   * `doc.stored`, not `doc.value`: this is about the document the URL carries,
+   * which is a different question from what has just been typed. Keystrokes
+   * are emitted by `onEdit`.
    */
   useEffect(() => {
     if (doc.stored === undefined) return;
@@ -149,7 +142,7 @@ export function EditorView({ help }: { help: HelpConfig }) {
     toText(incoming).then((text) => {
       if (cancelled || text === undefined) return;
       doc.replace(text);
-      if (autosend) emit(text);
+      emit(text);
     }).catch(() => {
       // An unreachable dataref or an unreadable blob: leave the document as
       // it is rather than blanking the editor.
@@ -157,11 +150,7 @@ export function EditorView({ help }: { help: HelpConfig }) {
     return () => {
       cancelled = true;
     };
-  }, [inputs, opts?.blockLocalEditorStateOverwrites, autosend, emit]);
-
-  // Only when an explicit Save is the way text leaves this frame. Read-only
-  // has nothing to save; autosend has already sent it.
-  const showSave = !autosend && !readOnly;
+  }, [inputs, opts?.blockLocalEditorStateOverwrites, emit]);
 
   return (
     <FrameShell
@@ -171,38 +160,26 @@ export function EditorView({ help }: { help: HelpConfig }) {
       options={options}
       toolbar={toolbar}
     >
-      <div class="flex h-full w-full flex-col">
-        {showSave && (
-          <div class="flex shrink-0 items-center gap-2 border-b border-line px-2 py-1.5">
-            <button
-              type="button"
-              class="btn btn-secondary px-3 py-1.5"
-              onClick={onSave}
-              title={saveInHash
-                ? "Write the text into this page's URL"
-                : "Send the text to whatever this frame is connected to"}
-            >
-              Save
-            </button>
-          </div>
-        )}
-        {base
-          ? (
-            <MonacoEditor
-              class="min-h-0 flex-1"
-              base={base}
-              value={doc.value ?? ""}
-              language={language}
-              theme={monacoThemeFor(scheme)}
-              onChange={onEdit}
-              readOnly={readOnly}
-              hideLineNumbers={opts?.hideLineNumbers}
-              wordWrap={opts?.wordWrap}
-              autoFocus={opts?.autoFocus}
-            />
-          )
-          : <div class="min-h-0 flex-1" />}
-      </div>
+      {
+        /* The editor is the whole frame: nothing above it, nothing beside it,
+          flush to the edges like every other renderer here. */
+      }
+      {base
+        ? (
+          <MonacoEditor
+            class="h-full w-full"
+            base={base}
+            value={doc.value ?? ""}
+            language={language}
+            theme={monacoThemeFor(scheme)}
+            onChange={onEdit}
+            readOnly={readOnly}
+            hideLineNumbers={opts?.hideLineNumbers}
+            wordWrap={opts?.wordWrap}
+            autoFocus={opts?.autoFocus}
+          />
+        )
+        : <div class="h-full w-full" />}
     </FrameShell>
   );
 }

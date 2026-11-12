@@ -7,3 +7,7 @@ node_modules/
 
 # Copied from node_modules by `just _monaco`
 static/editor/vs/
+
+# Playwright, installed on demand by `just test-browser`
+tests/browser/node_modules/
+tests/browser/package-lock.json

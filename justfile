@@ -50,6 +50,25 @@ grey := "\\e[90m"
     deno check .
     deno test -A lib/
 
+# Browser tests: the frames driven in a real browser, against `just dev`.
+#
+# Separate from `just check` because they need a running dev server and a
+# browser engine, and because they are slow. What they cover is what unit
+# tests cannot: a real editor, real keystrokes, a real metaframe handshake.
+#
+# Run `just dev` in another terminal first, or point BASE at a deployment:
+#   BASE=https://metaframes.dion19.workers.dev just test-browser
+@test-browser: _playwright
+    for t in tests/browser/*.mjs; do \
+        case "$t" in */harness.mjs) continue;; esac; \
+        echo -e "{{ bold }}$t{{ normal }}"; node "$t" || exit 1; \
+    done
+
+@_playwright:
+    if [ ! -d tests/browser/node_modules/playwright ]; then \
+        cd tests/browser && npm install --no-audit --no-fund && npx playwright install chromium; \
+    fi
+
 # Production build into ./_fresh
 @build: install _monaco
     deno task build

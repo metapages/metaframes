@@ -27,6 +27,11 @@
     "node_modules",
     ".wrangler",
     "server.js",
+    // Node scripts, run by `just test-browser` with its own package.json and
+    // its own node_modules. Deno must not fmt, lint or type-check them: it
+    // resolves `playwright` against the root node_modules, where it is
+    // deliberately absent so a deploy never installs a browser engine.
+    "tests/browser",
     // ./static is served verbatim and some of it is vendored browser code
     // (mediapipe's pipe scripts). `deno check` would follow their CDN imports
     // and make a type check need the network; lint reports things that are not
